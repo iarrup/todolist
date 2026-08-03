@@ -216,3 +216,36 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ---------------------------------------------------------------------------
+# Expo / React Native (Pocket Notebook)
+# ---------------------------------------------------------------------------
+node_modules/
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Generated native projects (regenerated via `expo prebuild`)
+/android
+/ios
+.kotlin/
+
+# Native signing / secrets
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# Debug logs
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# TypeScript build info
+*.tsbuildinfo
