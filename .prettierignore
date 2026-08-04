@@ -1,0 +1,16 @@
+node_modules/
+.expo/
+dist/
+web-build/
+/android
+/ios
+drizzle/
+assets/
+package-lock.json
+
+# Docs and planning artefacts are prose — not governed by app code formatting.
+.claude/
+*.md
+
+# Tool-generated config (owned by `expo lint`, protected from edits).
+eslint.config.js

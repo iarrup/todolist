@@ -19,12 +19,32 @@ brief, kept for history.
 
 ## Status
 
-Concept/spec stage — **no application code exists yet**. The repo currently
-holds planning docs, `LICENSE`, `.gitignore`, this file, and the skills library
-under `.claude/skills/`. There is no build/test/run command until Phase 1
-implementation begins, and the **tech stack is deliberately not yet chosen**
-(the spec says start cross-platform and reassess — see the `choose-tech-stack`
-skill).
+Phase 1 implementation underway. The **F1 foundation** is built: an
+Expo-managed React Native (TypeScript) app skeleton with the on-device SQLite
+database wired end-to-end (Drizzle ORM + versioned migrations) and a minimal
+Today shell. F2–F6 remain in Backlog. See `PROGRESS.md` for pipeline state.
+
+**Tech stack (decided 2026-07-29, libs confirmed at F1):** React Native + Expo,
+Expo Router (navigation), `expo-sqlite` + `drizzle-orm`/`drizzle-kit`
+(local DB + migrations), `expo-crypto` (UUIDs), Jest via `jest-expo` (tests).
+
+### Build / run / test
+
+Requires Node + the Android SDK for on-device runs. From the repo root:
+
+```bash
+npm install                       # install dependencies
+npx expo prebuild --platform android   # generate the native android/ project (gitignored)
+npx expo run:android              # build + launch on an Android device/emulator
+npm test                          # Jest (headless storage smoke test)
+npm run typecheck                 # tsc --noEmit
+npm run lint                      # expo lint (ESLint)
+npm run format:check              # Prettier (app code only; docs excluded)
+npm run db:generate               # regenerate a migration after editing src/db/schema.ts
+```
+
+App code lives in `src/` (`src/app/` = Expo Router routes; `src/db/` = storage
+layer). Generated migrations are in `drizzle/`.
 
 ## How we work: build in stages, plan then execute
 
