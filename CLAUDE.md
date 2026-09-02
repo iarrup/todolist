@@ -22,7 +22,10 @@ brief, kept for history.
 Phase 1 implementation underway. The **F1 foundation** is built: an
 Expo-managed React Native (TypeScript) app skeleton with the on-device SQLite
 database wired end-to-end (Drizzle ORM + versioned migrations) and a minimal
-Today shell. F2–F6 remain in Backlog. See `PROGRESS.md` for pipeline state.
+Today shell. **F2 (typed note capture)** is built: a pinned, multiline
+`NoteComposer` on the Today screen saves title-less notes locally via
+`insertNote`, and the live query surfaces them immediately. F3–F6 remain in
+Backlog. See `PROGRESS.md` for pipeline state.
 
 **Tech stack (decided 2026-07-29, libs confirmed at F1):** React Native + Expo,
 Expo Router (navigation), `expo-sqlite` + `drizzle-orm`/`drizzle-kit`

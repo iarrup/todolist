@@ -11,7 +11,7 @@ Stages: **Backlog → Spec → Plan → Impl → Done** (a feature advances only
 | # | Feature | One-liner | Depends on | Stage |
 |---|---|---|---|---|
 | F1 | App foundation & local storage | Cross-platform skeleton + on-device DB wiring + runnable app shell | choose-tech-stack (gated) | Impl |
-| F2 | Typed note capture | Instant, title-less text note saved locally | F1 | Backlog |
+| F2 | Typed note capture | Instant, title-less text note saved locally | F1 | Impl |
 | F3 | Today view | Default screen listing the current day's notes | F2 | Backlog |
 | F4 | Edit note | Open an existing note and change its text | F2, F3 | Backlog |
 | F5 | Time-based browsing | Day / week / month views of notes | F3 | Backlog |
@@ -32,6 +32,24 @@ Not yet planned (`plan-phase`). Open questions: accounts/auth, conflict handling
 
 ## Decision log
 
+- **2026-08-04** — **F2 (Typed note capture): spec approved → technical plan
+  approved → in implementation.** Capture UX decided with the user:
+  - **Surface:** an inline `NoteComposer` **pinned at the bottom** of the Today
+    screen (above the keyboard), not a modal/FAB.
+  - **Input:** **multiline**; **Return inserts a newline**; an explicit **send**
+    button commits the note. Empty/whitespace-only input is not saveable; the
+    field clears (keeping focus) after a save. Saves reuse F1's `insertNote`; the
+    existing `useLiveQuery` refreshes the list.
+  - **Approved deviation from the F2 spec's "No new dependencies":** added
+    component-test tooling — `@testing-library/react-native` (v13) +
+    `react-test-renderer` (pinned to React 19.2.3) + `@types/react-test-renderer`,
+    **dev-only** — so the composer's type→send→clear/disabled behavior is covered
+    by an automated render test (Option B). This departs from F1's headless-only
+    test style; the pure trim/empty rule (`src/lib/noteInput.ts`) is still tested
+    headlessly too. Approved by: user (arup.chowdhary@gmail.com).
+  - Verified headlessly: `jest` (10 tests), `tsc`, `expo lint`, Prettier, and
+    `expo export` (Android bundle) all pass. On-device Android run pending (no SDK
+    in the build environment).
 - **2026-08-03** — **F1 spec approved → technical plan approved → in
   implementation.** Companion libraries (left "not locked" in the 2026-07-29
   stack decision) **confirmed** at F1 spec/plan:
@@ -72,11 +90,12 @@ Not yet planned (`plan-phase`). Open questions: accounts/auth, conflict handling
 
 ## Now / Next
 
-- **Now:** **F1 implemented** on `feature/foundation` (scaffold + local DB +
-  Today shell), passing all headless checks. Awaiting **implementation
+- **Now:** **F2 implemented** on `feature/note-capture` (pinned `NoteComposer` +
+  Today rewire + tests), passing all headless checks. Awaiting **implementation
   review-and-gate** — including an on-device Android run (`expo run:android`) to
-  confirm DoD 2–4 — before F1 → Done.
-- **Next:** Gate F1; then pick up **F2 — Typed note capture** (`write-feature-spec`).
+  confirm the DoD's keyboard/append/clear/multiline/restart items — before
+  F2 → Done. (F1 similarly awaits its on-device gate.)
+- **Next:** Gate F2; then pick up **F3 — Today view** (`write-feature-spec`).
 - **Workflow:** Each feature is built on its **own branch in a separate Claude
   Code session**; planning/decisions are tracked here on
   `feature/create-features`.
