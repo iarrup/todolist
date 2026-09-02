@@ -1,50 +1,57 @@
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
 
+import { NoteComposer } from '@/components/NoteComposer';
 import { insertNote, notesForDayQuery } from '@/db/notes';
 
 /**
- * Today view — the app shell for Phase 1. It reads today's notes from the local
- * database and renders them as plain text (no titles, no metadata). This is
- * structure, not the capture feature: real note entry arrives in F2. The only
- * write affordance here is a dev-only seed button used to prove persistence.
+ * Today view — the default Phase 1 screen. It reads today's notes from the local
+ * database (live) and lets the user capture new ones through the pinned
+ * `NoteComposer`. Notes are plain text (no titles, no metadata); newlines render
+ * as-is. Saving goes through `insertNote`, and the live query refreshes the list
+ * automatically — no manual re-fetch.
  */
 export default function TodayScreen() {
   const { data: notes } = useLiveQuery(notesForDayQuery(new Date()));
 
   return (
-    <View style={styles.container}>
-      {notes.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyText}>No notes yet today</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={notes}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
-          renderItem={({ item }) => (
-            <View style={styles.note}>
-              <Text style={styles.noteText}>{item.text}</Text>
-            </View>
-          )}
-        />
-      )}
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <View style={styles.listArea}>
+        {notes.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>No notes yet today</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={notes}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.list}
+            renderItem={({ item }) => (
+              <View style={styles.note}>
+                <Text style={styles.noteText}>{item.text}</Text>
+              </View>
+            )}
+          />
+        )}
+      </View>
 
-      {__DEV__ && (
-        <Pressable
-          style={styles.devButton}
-          onPress={() => insertNote(`seed note ${new Date().toLocaleTimeString()}`)}
-        >
-          <Text style={styles.devButtonText}>+ dev seed</Text>
-        </Pressable>
-      )}
-    </View>
+      <NoteComposer
+        onSubmit={(text) => {
+          void insertNote(text);
+        }}
+      />
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  listArea: {
     flex: 1,
   },
   emptyState: {
@@ -68,18 +75,5 @@ const styles = StyleSheet.create({
   },
   noteText: {
     fontSize: 16,
-  },
-  devButton: {
-    position: 'absolute',
-    right: 20,
-    bottom: 28,
-    paddingVertical: 12,
-    paddingHorizontal: 18,
-    borderRadius: 24,
-    backgroundColor: '#208AEF',
-  },
-  devButtonText: {
-    color: '#fff',
-    fontWeight: '600',
   },
 });
