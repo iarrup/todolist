@@ -252,3 +252,6 @@ yarn-error.*
 
 # TypeScript build info
 *.tsbuildinfo
+
+# Claude Code machine-local settings
+.claude/settings.local.json
