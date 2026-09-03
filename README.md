@@ -30,8 +30,8 @@ npx expo run:android
 ```
 
 On first launch the app applies the database migration and opens the **Today**
-screen (empty until notes exist). In development builds, a **+ dev seed** button
-inserts a timestamped note so you can verify persistence across restarts.
+screen: a heading for the current day, a live list of today's notes (empty
+until you add one), and a pinned composer at the bottom for typing a new note.
 
 ## Scripts
 
@@ -57,5 +57,6 @@ drizzle/        Generated SQL migrations (committed)
 
 ## Status
 
-Phase 1 (Notes) — foundation (F1) complete; note capture and time views to
-follow. Tasks (Phase 2) and web/sync (Phase 3) come later.
+Phase 1 (Notes) — foundation, typed note capture, and the Today view (F1–F3)
+are done. Edit, time-based browsing, and voice capture (F4–F6) come next.
+Tasks (Phase 2) and web/sync (Phase 3) come later. See `PROGRESS.md`.

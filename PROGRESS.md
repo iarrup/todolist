@@ -10,9 +10,9 @@ Stages: **Backlog → Spec → Plan → Impl → Done** (a feature advances only
 
 | # | Feature | One-liner | Depends on | Stage |
 |---|---|---|---|---|
-| F1 | App foundation & local storage | Cross-platform skeleton + on-device DB wiring + runnable app shell | choose-tech-stack (gated) | Impl |
-| F2 | Typed note capture | Instant, title-less text note saved locally | F1 | Impl |
-| F3 | Today view | Default screen listing the current day's notes | F2 | Backlog |
+| F1 | App foundation & local storage | Cross-platform skeleton + on-device DB wiring + runnable app shell | choose-tech-stack (gated) | Done |
+| F2 | Typed note capture | Instant, title-less text note saved locally | F1 | Done |
+| F3 | Today view | Default screen listing the current day's notes | F2 | Done |
 | F4 | Edit note | Open an existing note and change its text | F2, F3 | Backlog |
 | F5 | Time-based browsing | Day / week / month views of notes | F3 | Backlog |
 | F6 | Voice capture | Voice-to-text entry (mic permission, editable transcript) | F2 | Backlog |
@@ -32,6 +32,87 @@ Not yet planned (`plan-phase`). Open questions: accounts/auth, conflict handling
 
 ## Decision log
 
+- **2026-09-03** — **F2 (Typed note capture): implementation gate passed
+  (review-and-gate) → F2 is Done.** All 9 spec DoD items verified, including
+  DoD 1 after the keyboard-avoidance fix below. Approved by: user
+  (arup.chowdhary@gmail.com).
+- **2026-09-03** — **F2 (Typed note capture): Android keyboard-avoidance
+  defect found and fixed during implementation gate review.** DoD item 1
+  ("composer stays visible above the on-screen keyboard") failed on Android:
+  the keyboard fully covered the composer instead of the layout resizing.
+  Root cause: this Expo/RN version (SDK 57 / RN 0.86) uses edge-to-edge
+  display on Android by default, so the window never actually resizes for the
+  keyboard — neither `android:windowSoftInputMode="adjustResize"` (tried via
+  `app.json`'s `android.softwareKeyboardLayoutMode: "resize"`, confirmed
+  present in the generated manifest) nor `KeyboardAvoidingView`'s built-in
+  `"height"` behavior had any effect, since both rely on a window resize that
+  edge-to-edge suppresses.
+  - **Options presented to the user:** (a) a manual `Keyboard` event listener
+    (no new dependency), (b) add `react-native-keyboard-controller` (new prod
+    dependency, a spec deviation), (c) track as a known issue and defer.
+    **Chose (a).** Approved by: user (arup.chowdhary@gmail.com).
+  - **Fix:** `src/app/index.tsx` now listens for `Keyboard`
+    `keyboardDidShow`/`keyboardDidHide` on Android and pads the screen by the
+    real IME height (`event.endCoordinates.height`) instead of relying on
+    native resize. The `adjustResize` manifest setting was kept (harmless,
+    technically correct) but the working fix is the manual listener.
+  - **Re-verified on-device** after the fix: composer + Send button stay fully
+    visible above the keyboard; typed and sent a note without needing to
+    dismiss the keyboard first; note saved and appeared at the top, field
+    cleared and stayed focused. Headless gates re-run clean (`npm test` 15/15,
+    `tsc`, `expo lint`, `format:check`, after a Prettier auto-format on the
+    edited file).
+- **2026-09-03** — **F1 (App foundation & local storage): implementation gate
+  passed (review-and-gate) → F1 is Done.** All 9 spec DoD items verified: Android
+  launch, empty state, persistence round-trip + restart survival, and the
+  storage smoke test were confirmed on-device during F3's verification pass
+  (item 1, `npm install`, wasn't independently re-run this session but inferred
+  clean from passing tests/build). One finding — `README.md` was stale (described
+  a dev-seed button F2 had already removed, understated progress) — **fixed**
+  before approval (Status section + dev-seed mention updated). Approved by: user
+  (arup.chowdhary@gmail.com).
+- **2026-09-03** — **F3 (Today view): implementation gate passed
+  (review-and-gate) → F3 is Done.** All 10 spec DoD items verified against
+  the diff (matches `.claude/plans/1/f3-today-view.plan.md` exactly, no scope creep);
+  no changes requested. Approved by: user (arup.chowdhary@gmail.com).
+- **2026-09-03** — **F3 (Today view): implemented** on `feature/today-view`
+  per `.claude/plans/1/f3-today-view.plan.md` — `formatDayHeading`, `DayHeading`,
+  `NoteList` (+ tests) added; `index.tsx` rewired and stays thin. All 10 spec
+  DoD items verified:
+  - Headless: `npm test` (20 tests, 7 suites, including the 5 new), `tsc`,
+    `expo lint`, Prettier all pass. Grep checks confirm no nav/edit/delete/voice
+    affordance and no network/auth code introduced.
+  - **On-device (Android emulator, Pixel_10_Pro, first on-device run for this
+    project):** heading renders correctly ("Today, Sep 3", matching device
+    date); empty state renders; a captured note appears live at the top; a
+    second note confirms newest-first ordering end-to-end; both notes survive
+    a full app force-stop + relaunch (on-device SQLite persistence). This
+    incidentally exercises F1's and F2's still-pending on-device DoD items
+    too (persistence round-trip, capture flow, live list) — evidence for their
+    own gates, but **does not itself constitute their gate approval**; F1/F2
+    remain `Impl` until reviewed on their own.
+  - **Note:** on Android, the pinned composer is not kept clear of the on-screen
+    keyboard while typing (`KeyboardAvoidingView`'s `behavior` is `undefined` on
+    Android — iOS-only `padding`); this is pre-existing F2 behavior, untouched
+    by F3, not fixed here. Flagging for a possible follow-up against F2's DoD
+    item 1 ("stays visible above the keyboard").
+  - Awaiting **implementation review-and-gate**.
+- **2026-09-03** — **F3 (Today view): technical plan approved (review-and-gate).**
+  Plan: `.claude/plans/1/f3-today-view.plan.md` — adds `formatDayHeading`, `DayHeading`,
+  `NoteList` (+ tests), rewires `index.tsx`; no schema/dependency changes. Every
+  step traces to a spec DoD item; no gaps found on review. Approved by: user
+  (arup.chowdhary@gmail.com). Proceeding to implementation.
+- **2026-09-03** — **F3 (Today view): spec written and gate passed
+  (review-and-gate).** Scope decided with the user: since F2 already renders
+  today's notes as a live, newest-first list with an empty state, F3 adds only
+  a **visible day heading** (e.g. "Today, Sep 3") plus an **extracted, tested
+  `NoteList` component** — no date navigation (F5), no editing (F4), no voice
+  (F6). The heading exists to give F5 a concrete place to attach day/week/month
+  navigation later. Spec: `.claude/specs/1-f3-today-view.md`. Gate note: F1/F2
+  implementations are still pending their on-device gate; the user accepted
+  that risk (scope is stable, only on-device verification is outstanding) and
+  approved proceeding to the F3 technical plan regardless. Approved by: user
+  (arup.chowdhary@gmail.com). Built on branch `feature/today-view`.
 - **2026-08-04** — **F2 (Typed note capture): spec approved → technical plan
   approved → in implementation.** Capture UX decided with the user:
   - **Surface:** an inline `NoteComposer` **pinned at the bottom** of the Today
@@ -90,12 +171,11 @@ Not yet planned (`plan-phase`). Open questions: accounts/auth, conflict handling
 
 ## Now / Next
 
-- **Now:** **F2 implemented** on `feature/note-capture` (pinned `NoteComposer` +
-  Today rewire + tests), passing all headless checks. Awaiting **implementation
-  review-and-gate** — including an on-device Android run (`expo run:android`) to
-  confirm the DoD's keyboard/append/clear/multiline/restart items — before
-  F2 → Done. (F1 similarly awaits its on-device gate.)
-- **Next:** Gate F2; then pick up **F3 — Today view** (`write-feature-spec`).
+- **Now:** **F1, F2, and F3 are all Done and gated**, on `feature/today-view`
+  (F1/F2 already merged to `master`; F3's + F2's keyboard fix are uncommitted
+  on this branch, pending commit/PR).
+- **Next:** Commit and open a PR for `feature/today-view`. Then pick up
+  **F4 (edit note)** or **F5 (time-based browsing)** (`write-feature-spec`).
 - **Workflow:** Each feature is built on its **own branch in a separate Claude
   Code session**; planning/decisions are tracked here on
   `feature/create-features`.

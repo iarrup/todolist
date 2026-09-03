@@ -15,7 +15,7 @@ If not, stop and get the spec approved first.
 
 ## Plan template
 
-Write to `plans/<phase>/<feature>.plan.md`:
+Write to `.claude/plans/<phase>/<feature>.plan.md` (alongside `.claude/specs/`):
 
 1. **References** — link the approved spec.
 2. **Data model** — entities, fields, relationships, indexes; how it maps to the
