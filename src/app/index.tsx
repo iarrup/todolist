@@ -1,7 +1,10 @@
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
-import { FlatList, KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 
+import { DayHeading } from '@/components/DayHeading';
 import { NoteComposer } from '@/components/NoteComposer';
+import { NoteList } from '@/components/NoteList';
 import { insertNote, notesForDayQuery } from '@/db/notes';
 
 /**
@@ -12,30 +15,40 @@ import { insertNote, notesForDayQuery } from '@/db/notes';
  * automatically — no manual re-fetch.
  */
 export default function TodayScreen() {
-  const { data: notes } = useLiveQuery(notesForDayQuery(new Date()));
+  const today = new Date();
+  const { data: notes } = useLiveQuery(notesForDayQuery(today));
+
+  // Android's edge-to-edge window never resizes for the keyboard, so neither
+  // `windowSoftInputMode="adjustResize"` nor KeyboardAvoidingView's built-in
+  // behaviors move the composer. Track the real IME height directly and pad
+  // the screen by it instead.
+  const [androidKeyboardHeight, setAndroidKeyboardHeight] = useState(0);
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const onShow = Keyboard.addListener('keyboardDidShow', (e) => {
+      setAndroidKeyboardHeight(e.endCoordinates.height);
+    });
+    const onHide = Keyboard.addListener('keyboardDidHide', () => {
+      setAndroidKeyboardHeight(0);
+    });
+    return () => {
+      onShow.remove();
+      onHide.remove();
+    };
+  }, []);
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[
+        styles.container,
+        Platform.OS === 'android' && { paddingBottom: androidKeyboardHeight },
+      ]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      <DayHeading date={today} />
+
       <View style={styles.listArea}>
-        {notes.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>No notes yet today</Text>
-          </View>
-        ) : (
-          <FlatList
-            data={notes}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.list}
-            renderItem={({ item }) => (
-              <View style={styles.note}>
-                <Text style={styles.noteText}>{item.text}</Text>
-              </View>
-            )}
-          />
-        )}
+        <NoteList notes={notes} />
       </View>
 
       <NoteComposer
@@ -53,27 +66,5 @@ const styles = StyleSheet.create({
   },
   listArea: {
     flex: 1,
-  },
-  emptyState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#8a8a8e',
-  },
-  list: {
-    padding: 16,
-    gap: 12,
-  },
-  note: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: 'rgba(120,120,128,0.12)',
-  },
-  noteText: {
-    fontSize: 16,
   },
 });
