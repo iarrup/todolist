@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, StyleSheet, Text, View } from 'react-native';
 
 import type { Note } from '@/db/schema';
-import { normalizeNoteInput } from '@/lib/noteInput';
+import { useNoteEditing } from '@/hooks/useNoteEditing';
+
+import { NoteRow } from './NoteRow';
 
 /**
  * Renders the given notes as-is (newest-first ordering is the caller's
@@ -17,23 +18,7 @@ interface NoteListProps {
 }
 
 export function NoteList({ notes, onEditNote }: NoteListProps) {
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [draftText, setDraftText] = useState('');
-
-  function commitEdit(id: string, text: string) {
-    const normalized = normalizeNoteInput(text);
-    if (normalized !== null) onEditNote(id, normalized);
-    setEditingId(null);
-    setDraftText('');
-  }
-
-  function handleLongPress(item: Note) {
-    if (editingId !== null && editingId !== item.id) {
-      commitEdit(editingId, draftText);
-    }
-    setEditingId(item.id);
-    setDraftText(item.text);
-  }
+  const editing = useNoteEditing(onEditNote);
 
   if (notes.length === 0) {
     return (
@@ -48,32 +33,7 @@ export function NoteList({ notes, onEditNote }: NoteListProps) {
       data={notes}
       keyExtractor={(item) => item.id}
       contentContainerStyle={styles.list}
-      renderItem={({ item }) =>
-        item.id === editingId ? (
-          <View style={styles.note}>
-            <TextInput
-              testID="note-edit-input"
-              style={styles.noteText}
-              value={draftText}
-              onChangeText={setDraftText}
-              onBlur={() => commitEdit(item.id, draftText)}
-              multiline
-              submitBehavior="newline"
-              autoFocus
-            />
-          </View>
-        ) : (
-          <Pressable
-            testID={`note-row-${item.id}`}
-            onLongPress={() => handleLongPress(item)}
-            style={styles.note}
-          >
-            <Text testID="note-text" style={styles.noteText}>
-              {item.text}
-            </Text>
-          </Pressable>
-        )
-      }
+      renderItem={({ item }) => <NoteRow note={item} editing={editing} />}
     />
   );
 }
@@ -91,14 +51,5 @@ const styles = StyleSheet.create({
   list: {
     padding: 16,
     gap: 12,
-  },
-  note: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: 'rgba(120,120,128,0.12)',
-  },
-  noteText: {
-    fontSize: 16,
   },
 });

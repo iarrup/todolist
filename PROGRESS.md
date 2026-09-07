@@ -14,7 +14,7 @@ Stages: **Backlog → Spec → Plan → Impl → Done** (a feature advances only
 | F2 | Typed note capture | Instant, title-less text note saved locally | F1 | Done |
 | F3 | Today view | Default screen listing the current day's notes | F2 | Done |
 | F4 | Edit note | Open an existing note and change its text | F2, F3 | Done |
-| F5 | Time-based browsing | Day / week / month views of notes | F3 | Backlog |
+| F5 | Time-based browsing | Day / week / month views of notes | F3 | Done |
 | F6 | Voice capture | Voice-to-text entry (mic permission, editable transcript) | F2 | Backlog |
 
 **Cut lines (out of scope for Phase 1):** tasks/todos (Phase 2); web surface,
@@ -32,6 +32,99 @@ Not yet planned (`plan-phase`). Open questions: accounts/auth, conflict handling
 
 ## Decision log
 
+- **2026-09-07** — **F5 (Time-based browsing): implementation gate passed
+  (review-and-gate) → F5 is Done.** All 14 spec DoD items verified against
+  the diff (matches `.claude/plans/1/f5-time-based-browsing.plan.md` exactly,
+  no scope creep — `NoteList.test.tsx` required zero changes despite the
+  underlying refactor, as the plan required). One disclosed deviation from
+  the plan's literal code: `index.tsx`'s `useLiveQuery` call needed an
+  explicit `deps` array (`[granularity, anchorDate.getTime()]`) the plan
+  snippet omitted, without which the live query silently never re-subscribed
+  on browsing-state changes — a real bug caught only by on-device testing,
+  fixed within the same already-listed file, not a scope expansion. `npm
+  test` (52/52, 13 suites), `tsc`, `expo lint`, `prettier --check src/` all
+  clean; no new dependencies; on-device verification (Pixel 10 Pro emulator)
+  passed in full, including edits surviving a force-stop + relaunch. No
+  changes requested. Approved by: user (arup.chowdhary@gmail.com).
+- **2026-09-07** — **F5 (Time-based browsing): implemented** on
+  `feature/time-based-browsing` per `.claude/plans/1/f5-time-based-browsing.plan.md`.
+  Built bottom-up: `db/weekRange.ts`/`monthRange.ts` (Sunday-start weeks),
+  `lib/formatWeek.ts`/`formatMonth.ts`, `lib/stepDate.ts` (month-end clamping,
+  e.g. Jan 31 → Feb 28 not March), `lib/groupNotesByDay.ts`, a generalized
+  `db/notes.ts` (`notesForRangeQuery` + `notesForWeekQuery`/`notesForMonthQuery`
+  + a `notesForGranularityQuery` dispatcher), `hooks/useNoteEditing.ts` +
+  `components/NoteRow.tsx` (extracted from `NoteList` so day and week/month
+  views share one edit code path), `components/GroupedNoteList.tsx`
+  (`SectionList`, day sub-headings reuse `formatDayHeading`), and
+  `components/BrowseHeader.tsx` (prev/next, tap-to-jump-to-today, Day/Week/
+  Month segmented control), which replaces and deletes `DayHeading.tsx`.
+  `index.tsx` now owns `granularity`/`anchorDate` browsing state.
+  - **Bug found and fixed during implementation:** `drizzle-orm/expo-sqlite`'s
+    `useLiveQuery(query, deps = [])` only re-subscribes when `deps` changes —
+    called without a `deps` array (as F1–F4 always had it, harmlessly, since
+    their query never changed after mount), the effect ran once and silently
+    kept serving the initial "today" query forever, updating only on DB
+    writes. This was invisible in the heading (pure local state) but meant
+    the note list never actually re-scoped when navigating. Fixed by passing
+    `[granularity, anchorDate.getTime()]` as `deps` in `index.tsx`. Caught
+    only during on-device verification — headless tests and typecheck/lint
+    all passed with the bug present, since the bug is in the live-query
+    wiring, not any unit-testable pure function.
+  - **Headless:** `npm test` (52 tests, 13 suites — 21 new tests across 8 new
+    suites; `NoteList.test.tsx` required zero changes despite the underlying
+    refactor), `tsc`, `expo lint`, and Prettier (on `src/`) all pass. Grep
+    checks confirm `index.tsx` has no inline range/grouping logic and no
+    calendar-grid/date-picker/network/auth code was introduced. No new
+    dependencies (`package.json` diff is empty).
+  - **On-device (Pixel 10 Pro emulator):** built and installed via
+    `expo run:android`; driven via `adb`/`uiautomator`. Verified against real
+    seed data spanning Sep 2–7, 2026 (multiple days/weeks): day prev/next
+    navigation scopes correctly (confirmed against known per-day note counts
+    for Sep 2/3/4/5/6/7); tap-heading jumps to today; Week view groups by day
+    with correct sub-headings and newest-first ordering, "This Week" label,
+    and an "Aug 30 – Sep 5" range label when browsing the prior week (month
+    repeated on both ends, per the confirmed decision); Month view likewise
+    ("This Month", "August 2026", "No notes this month" empty state);
+    switching granularity mid-browse (week→day and month→day) preserved the
+    anchor date instead of resetting to today, in both directions tested;
+    long-press-edit verified in both the flat day view and the grouped
+    week view (editing a note already visible in a grouped section), with
+    both edits persisting across a full `am force-stop` + relaunch. No JS
+    errors in logcat throughout (only a benign "Cannot connect to Expo CLI"
+    dev-tooling banner from a transient Metro reconnect, unrelated to app
+    correctness).
+  - Ready for **implementation review-and-gate**.
+- **2026-09-07** — **F5 (Time-based browsing): technical plan approved
+  (review-and-gate, via Claude Code Plan Mode).** Plan:
+  `.claude/plans/1/f5-time-based-browsing.plan.md` — adds week/month range
+  helpers (`db/weekRange.ts`, `db/monthRange.ts`, Sunday-start weeks),
+  heading formatters (`lib/formatWeek.ts`, `lib/formatMonth.ts`), a
+  date-stepper with month-end clamping (`lib/stepDate.ts`), a day-grouping
+  helper (`lib/groupNotesByDay.ts`), a shared edit hook + row component
+  (`hooks/useNoteEditing.ts`, `components/NoteRow.tsx`) factored out of
+  `NoteList` so day and week/month views can't drift in edit behavior, a new
+  `GroupedNoteList` (`SectionList`-based) for week/month, and a new
+  `BrowseHeader` (prev/next arrows, tap-to-jump-to-today,
+  Day/Week/Month segmented control) that replaces `DayHeading`. `db/notes.ts`
+  gains one shared range query plus a granularity dispatcher so `index.tsx`
+  stays free of range/grouping logic. No new dependencies. Two UX calls
+  confirmed with the user before finalizing: the nav-bar's static "Today"
+  title (`_layout.tsx`) is left unchanged (the in-screen `BrowseHeader`
+  always shows the correct label), and week/month range labels always repeat
+  the month on both ends (e.g. "Sep 1 – Sep 7"), not collapsed for
+  same-month ranges. Approved by: user (arup.chowdhary@gmail.com).
+- **2026-09-07** — **F5 (Time-based browsing): spec written and gate passed
+  (elicited via AskUserQuestion before drafting).** Scope decided with the
+  user: this feature covers **all three granularities** (day, week, month)
+  in one pass, not split into a day-nav-only feature. UX decided: **prev/next
+  arrows** flanking the heading (not swipe gestures) for navigation, tapping
+  the heading label **jumps to today**, week/month notes render as a
+  **grouped list by day** (day sub-heading per day with notes, empty days
+  omitted — not a calendar grid), and granularity is switched via a
+  **segmented Day/Week/Month control** near the heading (not separate
+  routes). Editing (F4) keeps working identically in every view. Spec:
+  `.claude/specs/1-f5-time-based-browsing.md`. Built on branch
+  `feature/time-based-browsing`.
 - **2026-09-06** — **F4 (Edit note): implementation gate passed
   (review-and-gate) → F4 is Done.** All 11 spec DoD items verified against
   the diff (matches `.claude/plans/1/f4-edit-note.plan.md` exactly, no scope
@@ -220,10 +313,10 @@ Not yet planned (`plan-phase`). Open questions: accounts/auth, conflict handling
 
 ## Now / Next
 
-- **Now:** **F1, F2, F3, and F4 are all Done and gated**, on `feature/edit-note`
+- **Now:** **F1–F5 are all Done and gated**, on `feature/time-based-browsing`
   (not yet merged to `master`).
-- **Next:** Commit and open a PR for `feature/edit-note`. Then pick up **F5
-  (time-based browsing)** or **F6 (voice capture)**.
+- **Next:** Commit and open a PR for `feature/time-based-browsing`. Then pick
+  up **F6 (voice capture)**, the last Phase 1 feature.
 - **Workflow:** Each feature is built on its **own branch in a separate Claude
   Code session**; planning/decisions are tracked here on
   `feature/create-features`.

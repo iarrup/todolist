@@ -16,6 +16,8 @@ import { and, desc, eq, gte, lte } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 
 import { endOfDay, startOfDay } from '../dayRange';
+import { endOfMonth, startOfMonth } from '../monthRange';
+import { endOfWeek, startOfWeek } from '../weekRange';
 import { notes, type Note } from '../schema';
 
 const DRIZZLE_DIR = path.join(__dirname, '../../../drizzle');
@@ -54,6 +56,24 @@ function listForDay(db: Db, date: Date): Note[] {
     .all();
 }
 
+function listForWeek(db: Db, date: Date): Note[] {
+  return db
+    .select()
+    .from(notes)
+    .where(and(gte(notes.createdAt, startOfWeek(date)), lte(notes.createdAt, endOfWeek(date))))
+    .orderBy(desc(notes.createdAt))
+    .all();
+}
+
+function listForMonth(db: Db, date: Date): Note[] {
+  return db
+    .select()
+    .from(notes)
+    .where(and(gte(notes.createdAt, startOfMonth(date)), lte(notes.createdAt, endOfMonth(date))))
+    .orderBy(desc(notes.createdAt))
+    .all();
+}
+
 function updateText(db: Db, id: string, text: string, updatedAt: number): void {
   db.update(notes).set({ text, updatedAt }).where(eq(notes.id, id)).run();
 }
@@ -86,6 +106,34 @@ describe('notes storage', () => {
 
     expect(today).toHaveLength(1);
     expect(today[0].text).toBe('todays note');
+  });
+
+  it('scopes the week view to notes within the Sunday-start calendar week', () => {
+    const db = makeDb();
+    // Sat, Sep 5, 2026 (last day of the prior week) vs Sun, Sep 6, 2026 (first
+    // day of the week containing Sep 9).
+    const saturdayBeforeWeek = new Date(2026, 8, 5, 23, 0, 0).getTime();
+    const sundayInWeek = new Date(2026, 8, 6, 0, 0, 0).getTime();
+    seed(db, 'just before the week', saturdayBeforeWeek);
+    seed(db, 'first day of the week', sundayInWeek);
+
+    const week = listForWeek(db, new Date(2026, 8, 9)); // Wed, Sep 9
+
+    expect(week).toHaveLength(1);
+    expect(week[0].text).toBe('first day of the week');
+  });
+
+  it('scopes the month view to notes within the calendar month', () => {
+    const db = makeDb();
+    const lastDayOfAugust = new Date(2026, 7, 31, 23, 0, 0).getTime();
+    const firstDayOfSeptember = new Date(2026, 8, 1, 0, 0, 0).getTime();
+    seed(db, 'just before the month', lastDayOfAugust);
+    seed(db, 'first day of the month', firstDayOfSeptember);
+
+    const month = listForMonth(db, new Date(2026, 8, 15));
+
+    expect(month).toHaveLength(1);
+    expect(month[0].text).toBe('first day of the month');
   });
 
   it('updates a note’s text and updatedAt, leaving id and createdAt unchanged', () => {

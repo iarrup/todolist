@@ -3,7 +3,10 @@ import * as Crypto from 'expo-crypto';
 
 import { db } from './client';
 import { startOfDay, endOfDay } from './dayRange';
+import { startOfMonth, endOfMonth } from './monthRange';
+import { startOfWeek, endOfWeek } from './weekRange';
 import { notes, type Note } from './schema';
+import type { Granularity } from '@/lib/granularity';
 
 /**
  * Data-access for notes. These are the seams later Phase 1 features build on
@@ -25,15 +28,43 @@ export async function insertNote(text: string): Promise<Note> {
 }
 
 /**
- * Drizzle query for the notes created on the local calendar day of `date`,
- * newest first. Returned unexecuted so screens can pass it to `useLiveQuery`.
+ * Drizzle query for notes created within `[start, end]` (inclusive epoch
+ * ms), newest first. The one range-query path every granularity builds on.
+ * Returned unexecuted so screens can pass it to `useLiveQuery`.
  */
-export function notesForDayQuery(date: Date) {
+function notesForRangeQuery(start: number, end: number) {
   return db
     .select()
     .from(notes)
-    .where(and(gte(notes.createdAt, startOfDay(date)), lte(notes.createdAt, endOfDay(date))))
+    .where(and(gte(notes.createdAt, start), lte(notes.createdAt, end)))
     .orderBy(desc(notes.createdAt));
+}
+
+/** Notes created on the local calendar day containing `date`. */
+export function notesForDayQuery(date: Date) {
+  return notesForRangeQuery(startOfDay(date), endOfDay(date));
+}
+
+/** Notes created in the local calendar week (Sunday-start) containing `date`. */
+export function notesForWeekQuery(date: Date) {
+  return notesForRangeQuery(startOfWeek(date), endOfWeek(date));
+}
+
+/** Notes created in the local calendar month containing `date`. */
+export function notesForMonthQuery(date: Date) {
+  return notesForRangeQuery(startOfMonth(date), endOfMonth(date));
+}
+
+/** Dispatches to the right `notesFor*Query` for the current granularity. */
+export function notesForGranularityQuery(granularity: Granularity, date: Date) {
+  switch (granularity) {
+    case 'day':
+      return notesForDayQuery(date);
+    case 'week':
+      return notesForWeekQuery(date);
+    case 'month':
+      return notesForMonthQuery(date);
+  }
 }
 
 /** Execute {@link notesForDayQuery} once. */

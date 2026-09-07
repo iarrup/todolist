@@ -2,21 +2,48 @@ import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { useEffect, useState } from 'react';
 import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 
-import { DayHeading } from '@/components/DayHeading';
+import { BrowseHeader } from '@/components/BrowseHeader';
+import { GroupedNoteList } from '@/components/GroupedNoteList';
 import { NoteComposer } from '@/components/NoteComposer';
 import { NoteList } from '@/components/NoteList';
-import { insertNote, notesForDayQuery, updateNoteText } from '@/db/notes';
+import { insertNote, notesForGranularityQuery, updateNoteText } from '@/db/notes';
+import type { Granularity } from '@/lib/granularity';
+import { stepDate } from '@/lib/stepDate';
+
+const EMPTY_MESSAGE: Record<Exclude<Granularity, 'day'>, string> = {
+  week: 'No notes this week',
+  month: 'No notes this month',
+};
 
 /**
- * Today view — the default Phase 1 screen. It reads today's notes from the local
+ * Today view — the default Phase 1 screen, now a day/week/month browser (F5).
+ * It reads notes for the current granularity + anchor date from the local
  * database (live) and lets the user capture new ones through the pinned
  * `NoteComposer`. Notes are plain text (no titles, no metadata); newlines render
- * as-is. Saving goes through `insertNote`, and the live query refreshes the list
- * automatically — no manual re-fetch.
+ * as-is. Saving goes through `insertNote` (always "now", independent of what's
+ * being browsed), and the live query refreshes the list automatically — no
+ * manual re-fetch.
  */
 export default function TodayScreen() {
-  const today = new Date();
-  const { data: notes } = useLiveQuery(notesForDayQuery(today));
+  const [granularity, setGranularity] = useState<Granularity>('day');
+  const [anchorDate, setAnchorDate] = useState(() => new Date());
+  const { data: notes } = useLiveQuery(notesForGranularityQuery(granularity, anchorDate), [
+    granularity,
+    anchorDate.getTime(),
+  ]);
+
+  function handlePrev() {
+    setAnchorDate((d) => stepDate(d, granularity, -1));
+  }
+  function handleNext() {
+    setAnchorDate((d) => stepDate(d, granularity, 1));
+  }
+  function handleJumpToToday() {
+    setAnchorDate(new Date());
+  }
+  function handleGranularityChange(g: Granularity) {
+    setGranularity(g);
+  }
 
   // Android's edge-to-edge window never resizes for the keyboard, so neither
   // `windowSoftInputMode="adjustResize"` nor KeyboardAvoidingView's built-in
@@ -45,15 +72,32 @@ export default function TodayScreen() {
       ]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <DayHeading date={today} />
+      <BrowseHeader
+        granularity={granularity}
+        anchorDate={anchorDate}
+        onPrev={handlePrev}
+        onNext={handleNext}
+        onJumpToToday={handleJumpToToday}
+        onGranularityChange={handleGranularityChange}
+      />
 
       <View style={styles.listArea}>
-        <NoteList
-          notes={notes}
-          onEditNote={(id, text) => {
-            void updateNoteText(id, text);
-          }}
-        />
+        {granularity === 'day' ? (
+          <NoteList
+            notes={notes}
+            onEditNote={(id, text) => {
+              void updateNoteText(id, text);
+            }}
+          />
+        ) : (
+          <GroupedNoteList
+            notes={notes}
+            onEditNote={(id, text) => {
+              void updateNoteText(id, text);
+            }}
+            emptyMessage={EMPTY_MESSAGE[granularity]}
+          />
+        )}
       </View>
 
       <NoteComposer
