@@ -1,4 +1,4 @@
-import { and, desc, gte, lte } from 'drizzle-orm';
+import { and, desc, eq, gte, lte } from 'drizzle-orm';
 import * as Crypto from 'expo-crypto';
 
 import { db } from './client';
@@ -39,4 +39,9 @@ export function notesForDayQuery(date: Date) {
 /** Execute {@link notesForDayQuery} once. */
 export async function listNotesForDay(date: Date): Promise<Note[]> {
   return notesForDayQuery(date);
+}
+
+/** Update a note's text (and `updatedAt`); `id` and `createdAt` are untouched. */
+export async function updateNoteText(id: string, text: string): Promise<void> {
+  await db.update(notes).set({ text, updatedAt: Date.now() }).where(eq(notes.id, id));
 }

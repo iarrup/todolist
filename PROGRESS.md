@@ -13,7 +13,7 @@ Stages: **Backlog → Spec → Plan → Impl → Done** (a feature advances only
 | F1 | App foundation & local storage | Cross-platform skeleton + on-device DB wiring + runnable app shell | choose-tech-stack (gated) | Done |
 | F2 | Typed note capture | Instant, title-less text note saved locally | F1 | Done |
 | F3 | Today view | Default screen listing the current day's notes | F2 | Done |
-| F4 | Edit note | Open an existing note and change its text | F2, F3 | Backlog |
+| F4 | Edit note | Open an existing note and change its text | F2, F3 | Done |
 | F5 | Time-based browsing | Day / week / month views of notes | F3 | Backlog |
 | F6 | Voice capture | Voice-to-text entry (mic permission, editable transcript) | F2 | Backlog |
 
@@ -32,6 +32,55 @@ Not yet planned (`plan-phase`). Open questions: accounts/auth, conflict handling
 
 ## Decision log
 
+- **2026-09-06** — **F4 (Edit note): implementation gate passed
+  (review-and-gate) → F4 is Done.** All 11 spec DoD items verified against
+  the diff (matches `.claude/plans/1/f4-edit-note.plan.md` exactly, no scope
+  creep): long-press-to-edit, blur-to-save, revert-on-empty, single-editable-
+  at-a-time, list order unaffected, `updateNoteText` tested, no delete/nav/
+  voice/network code added, `npm test` (20/20), typecheck/lint/format clean,
+  on-device verified on the Pixel 10 Pro emulator (immediate update, restart
+  survival, revert-on-empty, no crashes in logcat). No changes requested.
+  Approved by: user (arup.chowdhary@gmail.com).
+- **2026-09-06** — **F4 (Edit note): implemented** on `feature/edit-note` per
+  `.claude/plans/1/f4-edit-note.plan.md`. Long-press a note to edit it inline;
+  the edit auto-saves on blur (via new `updateNoteText`) unless cleared to
+  empty/whitespace, in which case it reverts to the original text — no
+  Save/Cancel buttons, no delete, no separate edit screen. Only one note is
+  editable at a time (long-pressing another commits/reverts the open one
+  first). All 11 spec DoD items covered:
+  - **Headless:** `npm test` (20 tests, 5 suites — 4 new `NoteList` edit-flow
+    tests and 1 new `updateNoteText` test added to the existing suites),
+    `tsc`, `expo lint`, and Prettier all pass. Grep check confirms no delete
+    affordance, date-nav control, voice button, or network/auth code in the
+    diff.
+  - **On-device (DoD 2, 3, 5, 11): verified**, on a headlessly-launched
+    Pixel 10 Pro emulator (`expo run:android` → build succeeded, APK
+    installed, JS bundle loaded). Driven via `adb`/`uiautomator` (long-press
+    simulated as a same-point `input swipe` with a hold duration): captured a
+    note, long-pressed it into edit mode (pre-filled with its text), edited
+    it and blurred by shifting focus to the composer — the list updated
+    immediately with the new text. Force-stopped and relaunched the app —
+    the edit survived. Long-pressed again, cleared the text to
+    whitespace-only, blurred — the row reverted to the last saved text (not
+    deleted, not blank). No crashes or JS errors in `logcat` throughout.
+    Single-note case only; multi-note ordering-unaffected-by-edit and
+    only-one-editable-at-a-time are covered by the `NoteList` unit tests, not
+    re-driven on-device.
+  - Ready for **implementation review-and-gate**.
+- **2026-09-06** — **F4 (Edit note): technical plan approved (review-and-gate,
+  via Claude Code Plan Mode).** Plan: `.claude/plans/1/f4-edit-note.plan.md` —
+  adds `updateNoteText` to `src/db/notes.ts`, extends `NoteList` with
+  long-press-to-edit/blur-to-commit/revert-on-empty state, wires `index.tsx`.
+  No schema/dependency changes. Every implementation step traces to a spec DoD
+  item. Approved by: user (arup.chowdhary@gmail.com).
+- **2026-09-06** — **F4 (Edit note): spec written and gate passed
+  (elicited via AskUserQuestion before drafting).** UX decided with the user:
+  **long-press** to enter edit (tap reserved, avoids accidental edits),
+  **inline** editing in the existing list row (no separate screen/modal),
+  **auto-save on blur** (no explicit Save/Cancel), and clearing a note to
+  empty/whitespace **reverts** to the original text rather than deleting it
+  (delete stays out of scope for F4). Spec: `.claude/specs/1-f4-edit-note.md`.
+  Built on branch `feature/edit-note`.
 - **2026-09-03** — **F2 (Typed note capture): implementation gate passed
   (review-and-gate) → F2 is Done.** All 9 spec DoD items verified, including
   DoD 1 after the keyboard-avoidance fix below. Approved by: user
@@ -171,11 +220,10 @@ Not yet planned (`plan-phase`). Open questions: accounts/auth, conflict handling
 
 ## Now / Next
 
-- **Now:** **F1, F2, and F3 are all Done and gated**, on `feature/today-view`
-  (F1/F2 already merged to `master`; F3's + F2's keyboard fix are uncommitted
-  on this branch, pending commit/PR).
-- **Next:** Commit and open a PR for `feature/today-view`. Then pick up
-  **F4 (edit note)** or **F5 (time-based browsing)** (`write-feature-spec`).
+- **Now:** **F1, F2, F3, and F4 are all Done and gated**, on `feature/edit-note`
+  (not yet merged to `master`).
+- **Next:** Commit and open a PR for `feature/edit-note`. Then pick up **F5
+  (time-based browsing)** or **F6 (voice capture)**.
 - **Workflow:** Each feature is built on its **own branch in a separate Claude
   Code session**; planning/decisions are tracked here on
   `feature/create-features`.
