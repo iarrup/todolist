@@ -5,7 +5,7 @@ import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, View } from 'reac
 import { DayHeading } from '@/components/DayHeading';
 import { NoteComposer } from '@/components/NoteComposer';
 import { NoteList } from '@/components/NoteList';
-import { insertNote, notesForDayQuery } from '@/db/notes';
+import { insertNote, notesForDayQuery, updateNoteText } from '@/db/notes';
 
 /**
  * Today view — the default Phase 1 screen. It reads today's notes from the local
@@ -48,7 +48,12 @@ export default function TodayScreen() {
       <DayHeading date={today} />
 
       <View style={styles.listArea}>
-        <NoteList notes={notes} />
+        <NoteList
+          notes={notes}
+          onEditNote={(id, text) => {
+            void updateNoteText(id, text);
+          }}
+        />
       </View>
 
       <NoteComposer
