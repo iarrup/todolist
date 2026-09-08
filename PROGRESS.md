@@ -15,7 +15,7 @@ Stages: **Backlog → Spec → Plan → Impl → Done** (a feature advances only
 | F3 | Today view | Default screen listing the current day's notes | F2 | Done |
 | F4 | Edit note | Open an existing note and change its text | F2, F3 | Done |
 | F5 | Time-based browsing | Day / week / month views of notes | F3 | Done |
-| F6 | Voice capture | Voice-to-text entry (mic permission, editable transcript) | F2 | Backlog |
+| F6 | Voice capture | Voice-to-text entry (mic permission, editable transcript) | F2 | Done |
 
 **Cut lines (out of scope for Phase 1):** tasks/todos (Phase 2); web surface,
 sync backend, accounts/auth (Phase 3); keyword search and note→task promotion
@@ -32,6 +32,169 @@ Not yet planned (`plan-phase`). Open questions: accounts/auth, conflict handling
 
 ## Decision log
 
+- **2026-09-08** — **F6 (Voice capture): verified on a second physical
+  device (Pixel 10 Pro, the user's primary phone) and one cosmetic fix
+  applied.** Installed the same `arm64-v8a` debug build (matched the Pixel
+  6a's architecture, no separate build needed) via wireless `adb`, tunneled
+  Metro the same way (`adb reverse tcp:8081 tcp:8081`). Native recognition
+  engaged correctly on this device too (confirmed via live-tailed
+  `adb logcat`), though its Android/Google-app version emits a different
+  native event pattern (`onSegmentResults`/`onEndOfSegmentedSession`
+  alongside `onPartialResults`) than the Pixel 6a's simpler
+  partial/final-result flow — both are handled by the same `result`
+  event/`isFinal` contract from `expo-speech-recognition`'s JS side, so no
+  code change was needed for this device specifically. The user confirmed
+  transcription itself was fine on both devices; the one real issue raised
+  was cosmetic: the mic button showed the literal word "Mic"/"Stop" instead
+  of an icon. Decided with the user: use emoji glyphs (🎤 idle/unavailable,
+  ⏹ listening) rather than adding an icon library — this project had zero
+  icon dependencies before F6, and the approved spec already named
+  `expo-speech-recognition` as the one dependency exception, so a second
+  dependency for a cosmetic icon wasn't taken without asking. Changed only
+  `NoteComposer.tsx`'s `micButtonText` content and style (dropped the
+  send-button-matching `color`/`fontWeight`, which have no effect on emoji
+  glyphs, in favor of a larger `fontSize: 18` for legibility as an icon).
+  No test needed updating (none asserted on the button's text content,
+  only `accessibilityState`/`accessibilityLabel`). `npm test` (63/63),
+  `tsc`, `expo lint`, Prettier all still pass. Verified visually via
+  `adb screencap` on both devices — a real 🎤 renders (not a missing-glyph
+  box) in both the idle (gray) and listening (red, ⏹) button states, pixel-
+  identical between the Pixel 6a and Pixel 10 Pro. Approved by: user
+  (arup.chowdhary@gmail.com).
+- **2026-09-08** — **F6 (Voice capture): DoD 3/12 live-transcription gap
+  closed for real on a physical device — a genuine bug was found and fixed
+  in the process, superseding the "documented gap" entry below.** After the
+  emulator-audio limitation was accepted as a documented gap, a physical
+  Pixel 6a (Android 16) became available over wireless `adb` debugging mid-session.
+  Installed the dev build on it (required a separate `arm64-v8a` Gradle build —
+  the existing debug APK was `x86_64`-only from the emulator build) and
+  reached Metro via `adb reverse tcp:8081 tcp:8081` (the phone couldn't reach
+  the host's LAN IP directly). Live-tailed `adb logcat` while the user
+  manually tapped the mic and spoke on real hardware.
+  - **Bug found:** the user reported "only last few words are being
+    transcribed, the initial message is getting lost." Logs confirmed why:
+    with `continuous: true`, the real device's on-device SODA recognizer
+    resets its transcript at each detected speech segment (a pause) rather
+    than accumulating across the whole listening session — e.g. one segment
+    produced "okay let us try the mic test," then the next segment's
+    `result` events restarted from empty. `useVoiceCapture`'s merge only
+    ever measured against `baseTextRef` frozen at listening-start, so every
+    new segment's text silently replaced (instead of appending after) every
+    prior segment's already-recognized words.
+  - **Fix:** `src/hooks/useVoiceCapture.ts`'s `result` handler now commits
+    the merged value into `baseTextRef.current` whenever `event.isFinal` is
+    true, so the next segment's interim results build on top of the
+    previous segment's committed text instead of the original
+    listening-start snapshot. `mergeVoiceTranscript` itself needed no
+    change — only how/when its result gets committed as the new base.
+  - **New regression test:** `NoteComposer.test.tsx` gained "appends a
+    second speech segment after the first instead of overwriting it" (a
+    final result committing, followed by a second segment's partial result,
+    asserting the field shows both). `npm test` (63/63, 14 suites), `tsc`,
+    `expo lint`, Prettier all pass after the fix.
+  - **Re-verified on the physical Pixel 6a** after reloading the fixed JS
+    bundle (Metro serves fresh JS on relaunch — no APK reinstall needed for
+    a JS-only change): user manually spoke a multi-segment sentence with a
+    pause in it and confirmed **"Fixed — full text now shows correctly."**
+    This closes DoD 3 and the remaining speaking-specific part of DoD 12 for
+    real — not merely inferred from native engagement — completing all 12
+    spec DoD items. Approved by: user (arup.chowdhary@gmail.com).
+- **2026-09-08** — **F6 (Voice capture): implementation gate passed
+  (review-and-gate) → F6 is Done, with one disclosed, user-approved
+  limitation (superseded by the entry above — DoD 3/12 were later verified
+  for real on a physical device, which also surfaced and fixed a genuine
+  multi-segment transcript bug not caught by the emulator/headless testing
+  in this entry).** Implemented on `feature/voice-capture` per
+  `.claude/plans/1/f6-voice-capture.plan.md`: `src/lib/mergeVoiceTranscript.ts`
+  (pure cumulative-transcript merge), `src/hooks/useVoiceCapture.ts`
+  (wraps `expo-speech-recognition`'s start/stop + event stream around the
+  composer's existing text state), and `NoteComposer.tsx`'s new mic button
+  (testID `note-mic`, tap-to-toggle, idle/listening/unavailable states,
+  typing disabled only while actively listening). New dependency
+  `expo-speech-recognition@~57.0.0`; `app.json` gained its config plugin
+  block (mirroring `expo-splash-screen`'s two-element form).
+  - **Headless:** `npm test` (62 tests, 14 suites — 5 new
+    `mergeVoiceTranscript` tests in a new suite, 5 new `NoteComposer` voice-flow
+    tests using
+    this repo's first explicit native-module `jest.mock` — `NoteComposer.test.tsx`
+    needed a `beforeEach(() => jest.clearAllMocks())` added since mock call
+    counts otherwise leaked across cases, unrelated to prior tests), `tsc`,
+    `expo lint` (one `react-hooks/refs` violation fixed by moving the
+    `value` ref sync into a `useEffect` instead of writing `.current` during
+    render), and Prettier all pass. Grep checks confirm no new
+    screens/fields/modals and no cloud/network speech code introduced.
+  - **On-device (Android, Pixel 10 Pro emulator):** 11 of 12 spec DoD items
+    verified via `expo prebuild` + `expo run:android`, driven headlessly via
+    `adb`/`uiautomator`: `expo-speech-recognition` compiled and linked
+    cleanly; `RECORD_AUDIO` + speech-recognition `<queries>` visibility
+    landed in the generated manifest; tapping the mic triggers a real Android
+    permission dialog, and granting it flips the button to its listening
+    state (red "Stop", `selected=true`) while disabling the text input;
+    tapping again stops listening and re-enables typing; denying the
+    permission (including a hard `pm revoke` + fresh prompt) leaves the
+    composer fully typeable with the mic showing a clear
+    disabled "Voice input unavailable" state and does **not** re-prompt on a
+    second tap; typing, sending, and persistence across a force-stop +
+    relaunch all work unaffected by the new mic UI, with the native
+    `SpeechRecognizer`/on-device SODA engine confirmed engaging correctly
+    (verified via logcat: `onStartListening`, `onMicrophoneOpened`, and
+    continuous mic-buffer delivery to the offline recognizer) and no crashes
+    or JS errors throughout. **Not independently verified: DoD 3 (live
+    partial-result streaming while actually speaking) and the speaking-specific
+    part of DoD 12.** Root cause, diagnosed in-session: this sandboxed dev
+    environment's headless emulator can inject synthesized speech as virtual
+    mic input at the OS audio-routing level (confirmed working end-to-end via
+    a PulseAudio null-sink + loopback carrying an `espeak-ng`-synthesized
+    WAV, verified reaching the guest's `AudioRecord`/SODA pipeline as
+    continuous buffers) but QEMU's own audio driver fails to initialize
+    (`Could not init 'pa' audio driver`) even with the required client
+    libraries (`libpulse0`, `pipewire-pulse`) present and working for every
+    other process on the host — most likely a sandbox-level restriction on
+    IPC/shared-memory syscalls specific to how the emulator process is
+    launched in this session, not fixable via emulator flags, env vars, or
+    alternate `-audio` backends (all attempted). This blocks *any* audio
+    reaching this specific emulator instance, not just the WAV-injection
+    technique — a genuine, disclosed infrastructure limitation, not a code
+    defect, distinct from `expo-speech-recognition`'s own (separately
+    verified) correct engagement of the platform recognizer. **Decision,
+    made with the user after exhausting the fallback options in the
+    approved plan's Risks section (WAV injection → troubleshoot further →
+    accept as documented gap):** mark F6 Done with this one caveat rather
+    than block on a physical-device test. Approved by: user
+    (arup.chowdhary@gmail.com).
+- **2026-09-07** — **F6 (Voice capture): technical plan approved (review-and-gate,
+  via Claude Code Plan Mode).** Plan: `.claude/plans/1/f6-voice-capture.plan.md`
+  — adds a mic button to `NoteComposer` wired through a new `useVoiceCapture`
+  hook (`src/hooks/useVoiceCapture.ts`) around `expo-speech-recognition`, with
+  the cumulative-transcript merge logic isolated in a pure
+  `src/lib/mergeVoiceTranscript.ts` helper. Two open calls the spec left for
+  this stage were resolved: typing is **disabled while actively listening**
+  (avoids a silent data-loss race between live partial-result writes and
+  concurrent keystrokes; DoD 5 only requires post-stop editability), and
+  permission-denied state is **in-memory only** (not persisted — the OS
+  remains the durable source of truth for the grant, so a fresh launch
+  re-queries rather than duplicating that state). New dependency:
+  `expo-speech-recognition@~57.0.0` (verified current on npm), requiring a
+  native rebuild (`expo prebuild` + `expo run:android`) since it has no Expo
+  Go support — the one dependency exception this project's Phase 1 specs
+  allow, per the approved spec. **Verification method decided with the
+  user:** since on-device checks in this project are driven headlessly via
+  `adb`/`uiautomator` with no human microphone available, DoD 3/12's live
+  speech-to-text checks will be done by injecting a pre-recorded WAV as the
+  emulator's virtual mic input via host-audio-loopback routing — a new
+  technique for this project, flagged in the plan's Risks section as
+  environment-dependent and to be worked out during implementation, with a
+  manual-verification fallback if it proves unworkable. Approved by: user
+  (arup.chowdhary@gmail.com).
+- **2026-09-07** — **F6 (Voice capture): spec written and gate passed
+  (elicited via AskUserQuestion before drafting).** Decisions confirmed with
+  the user: transcription engine is **`expo-speech-recognition`** (on-device/
+  platform speech APIs, no cloud key — keeps Phase 1 local-first), the mic
+  control is **tap-to-toggle** (not press-and-hold), and recognized text
+  **streams live** into the existing composer field as partial results
+  arrive, rather than only appearing after recognition stops. Spec:
+  `.claude/specs/1-f6-voice-capture.md`. Built on branch
+  `feature/voice-capture`.
 - **2026-09-07** — **F5 (Time-based browsing): implementation gate passed
   (review-and-gate) → F5 is Done.** All 14 spec DoD items verified against
   the diff (matches `.claude/plans/1/f5-time-based-browsing.plan.md` exactly,

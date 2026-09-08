@@ -34,8 +34,22 @@ the Today screen is now a day/week/month browser — a `BrowseHeader` (replacing
 `DayHeading`) adds prev/next arrows, tap-the-heading-to-jump-to-today, and a
 Day/Week/Month segmented control; week/month render notes grouped by day via
 `GroupedNoteList`; long-press-to-edit (F4) works identically in every view via
-a shared `useNoteEditing` hook + `NoteRow`. F6 remains in Backlog. See
-`PROGRESS.md` for pipeline state.
+a shared `useNoteEditing` hook + `NoteRow`. **F6 (voice capture)** is
+implemented and verified on-device on two physical phones (Pixel 6a and
+Pixel 10 Pro), including real speech-to-text: a mic button in `NoteComposer`
+(via a new `useVoiceCapture` hook wrapping `expo-speech-recognition`, shown
+as a 🎤/⏹ emoji glyph rather than a new icon-library dependency) streams
+recognized speech live into the same text field as typed input, tap-to-toggle,
+with typing disabled only while actively listening and permission denial
+leaving the composer fully typeable. This completes Phase 1. (The project's
+headless emulator can't get host audio to its guest mic at all — a QEMU
+audio-driver limitation, not an app defect — so live transcription was
+verified on physical devices instead, which also caught and fixed a real bug:
+the on-device recognizer resets its transcript at each speech segment/pause,
+so `useVoiceCapture` now commits each finalized segment before the next one
+starts. See
+`PROGRESS.md`'s decision log for the full diagnosis.) See `PROGRESS.md` for
+pipeline state.
 
 **Tech stack (decided 2026-07-29, libs confirmed at F1):** React Native + Expo,
 Expo Router (navigation), `expo-sqlite` + `drizzle-orm`/`drizzle-kit`
