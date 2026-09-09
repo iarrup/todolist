@@ -28,7 +28,7 @@ React Native + Expo (TypeScript).** See decision log.
 
 | # | Feature | One-liner | Depends on | Stage |
 |---|---|---|---|---|
-| F7 | Task management | Add/edit/delete/complete a task — minimal, text-only, no title | F1 | Backlog |
+| F7 | Task management | Add/edit/delete/complete a task — minimal, text-only, no title | F1 | Done |
 | F8 | Task list view | Default view: all open (incomplete) tasks | F7 | Backlog |
 | F9 | Task scheduling | Add a date & time to a task | F7 | Backlog |
 | F10 | Task time-based views | Browse tasks by day / week / month / year | F9 | Backlog |
@@ -44,6 +44,120 @@ Not yet planned (`plan-phase`). Open questions: accounts/auth, conflict handling
 
 ## Decision log
 
+- **2026-09-09** — **F7 (Task management): implementation gate passed
+  (review-and-gate) → F7 is Done.** All 11 spec DoD items verified against
+  the diff (headless: 87/87 tests, `tsc`/`expo lint`/`prettier --check .`
+  all clean; on-device: Pixel_10_Pro emulator, Notes tab regression-checked
+  unaffected, add/edit/complete/delete all confirmed with two independent
+  restart-persistence checks). One revision made during this gate (see the
+  entry below): delete changed from swipe-alone-deletes to
+  swipe-reveals-a-button-then-tap-to-delete, per the user's explicit
+  request — re-verified after the change, both headlessly and on-device.
+  No other changes requested. Approved by: user (arup.chowdhary@gmail.com).
+- **2026-09-09** — **F7 (Task management): delete UX revised during
+  implementation `review-and-gate` ("request changes") → re-verified,
+  re-submitted for gate approval.** The user's requested change: swiping a
+  task should **reveal a "Delete" button, not delete immediately** — the
+  swipe itself no longer deletes; only an explicit tap on the revealed
+  button does. Confirmed the exact interaction via `AskUserQuestion` (with
+  ASCII-mockup previews) against a second plausible reading
+  ("drag-to-confirm slider") before implementing, since it reverses the
+  spec's original swipe-alone-deletes decision. `TaskRow.tsx`'s
+  `renderRightActions` now renders a real `Pressable` "Delete" button
+  (`testID="task-delete-button"`) instead of a plain colored background;
+  `onSwipeableOpen`'s auto-delete is removed; the button calls
+  `swipeableRef.current?.close()` then `onDeleteTask(id)`. Updated
+  `.claude/specs/2-f7-task-management.md` (rules + DoD item 5) and
+  `.claude/plans/2/f7-task-management.plan.md` (design/testing/risks
+  sections) to match. `TaskRow.test.tsx` replaced its two
+  `onSwipeableOpen`-driven tests with `fireEvent.press` on the real button
+  (simpler and more robust — `Swipeable` renders `renderRightActions`'
+  content in the tree regardless of swipe state, so no gesture simulation
+  is needed at all). `npm test` (87/87), `tsc`, `expo lint`,
+  `prettier --check .` all still clean. **Re-verified on-device**
+  (Pixel_10_Pro emulator, fresh JS reload — no rebuild needed, JS-only
+  change): swiping a task reveals the Delete button **without** deleting it
+  (confirmed the task is still present and unchanged after the swipe);
+  tapping the revealed button deletes it. Found and documented a
+  `adb`-tap-vs-gesture-handler recognition quirk in this session (a `Swipeable`-revealed
+  button's first `adb`-synthetic tap is often silently swallowed, needing a
+  retry — confirmed via Jest's reliable `fireEvent.press` pass and clean
+  logcat that this is a synthetic-input testing-tool artifact, not an app
+  bug; full writeup saved to the `android-build-toolchain` memory for future
+  sessions building swipeable UI). **Re-submitted for implementation
+  `review-and-gate` approval.**
+- **2026-09-09** — **F7 (Task management): implemented and verified
+  on-device (Pixel_10_Pro emulator) → ready for implementation
+  `review-and-gate`.** Built on `feature/task-management` per
+  `.claude/plans/2/f7-task-management.plan.md`, step by step, no deviations
+  from the plan.
+  - **New:** `tasks` table + migration (`drizzle/0001_freezing_rhino.sql`,
+    adds only `tasks`, `notes` untouched); `src/db/tasks.ts`
+    (insert/list/updateText/setCompleted/delete); `src/hooks/useTaskEditing.ts`;
+    `src/components/TaskComposer.tsx`, `TaskRow.tsx`, `TaskList.tsx`; the new
+    `src/app/tasks.tsx` screen. `src/app/_layout.tsx` now renders a
+    `GestureHandlerRootView` + `Tabs` (Notes | Tasks) instead of a single-screen
+    `Stack`. `jest.config.js` gained `setupFiles:
+    ['react-native-gesture-handler/jestSetup']`.
+  - **Headless:** `npm test` (87/87, 18 suites — 5 new `tasks.test.ts`, 3 new
+    `TaskComposer`/6 new `TaskRow`/9 new `TaskList` tests), `tsc`, `expo lint`,
+    and `prettier --check .` all pass (one pre-existing, untouched
+    `todolist.code-workspace` formatting warning, unrelated to this diff).
+    Grep checks confirm no title/tag/due-date/recurrence field and no
+    date-picker/notification/network/auth code anywhere in the new files.
+  - **On-device (Pixel_10_Pro emulator):** required fixing this session's
+    build environment first — `android/local.properties` was missing
+    (`sdk.dir` unset) and the shell's default `java`/`javac` weren't the
+    pinned JDK 17; both fixed per the `android-build-toolchain` memory notes
+    (`sdk.dir=/home/couch-potato/Android/Sdk`,
+    `JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64`), then `expo run:android`
+    built and installed cleanly. Verified via `adb`/`uiautomator`: Notes tab
+    unaffected (still shows the Today browse view, unchanged); Tasks tab
+    shows the empty state, then a typed task appears immediately and the
+    composer clears; checkbox toggles complete/incomplete immediately
+    (glyph + `accessibilityState.checked` both flip); long-press opens
+    inline edit pre-filled with the task's text, and blurring (tap another
+    focusable element — Android doesn't blur on an empty-area tap) saves the
+    edit; swiping a row left deletes it immediately. **Both an edited task
+    and a completed task's state were independently confirmed to survive a
+    full `am force-stop` + relaunch** (a completed task specifically was
+    re-verified after the first pass only incidentally tested it pre-delete).
+    No crashes or JS errors in `logcat` throughout the full session.
+  - **Awaiting implementation `review-and-gate` approval.**
+- **2026-09-09** — **F7 (Task management): spec gate passed → technical
+  plan drafted (`write-technical-plan`).** The user directed work straight
+  to the technical plan, which is treated as approval of
+  `.claude/specs/2-f7-task-management.md` as written (no changes requested).
+  Plan: `.claude/plans/2/f7-task-management.plan.md` — new `tasks` table
+  (`id`/`text`/`completed`/`createdAt`/`updatedAt`, `completed` as a Drizzle
+  boolean-mode integer column) + `src/db/tasks.ts`; a **new, separate**
+  `useTaskEditing` hook and `TaskRow`/`TaskList`/`TaskComposer` components
+  (deliberately not generalized from F4's `useNoteEditing`/`NoteRow`, since
+  those files are outside this spec's change set); a new `tasks` tab screen;
+  `_layout.tsx` switches from a single-screen `Stack` to a `Tabs` navigator
+  (Notes | Tasks) wrapped in `GestureHandlerRootView` (not previously present
+  anywhere in the app — required for the new `Swipeable`-based
+  swipe-to-delete). No new dependencies — swipe-to-delete uses the
+  already-installed `react-native-gesture-handler`; `jest.config.js` gains
+  one `setupFiles` line for its jest mock. Flagged risks: two small,
+  deliberate code duplications (`useTaskEditing` vs `useNoteEditing`, and the
+  Android-IME-height listener copied into `tasks.tsx`) rather than touching
+  F4/F5's already-shipped files or `index.tsx`, both outside this spec's
+  file list; multiple swipe rows don't auto-close each other (cosmetic,
+  deferred). **Awaiting `review-and-gate` approval before implementation.**
+- **2026-09-09** — **F7 (Task management): spec drafted (`create-spec`),
+  UX decisions elicited via `AskUserQuestion` before drafting.** Decided with
+  the user: tasks get a **bottom tab bar** (Notes | Tasks), not a link/toggle
+  on the existing screen; complete/incomplete is toggled via a **checkbox at
+  the row start**; delete is **swipe-to-delete** (no persistent delete
+  button); edit is **long-press → inline field → auto-save on blur**, the
+  same pattern as F4. F7's list is deliberately unfiltered (all tasks,
+  newest-first) — open-only filtering is F8's job. New `tasks` table
+  (`id`/`text`/`completed`/`createdAt`/`updatedAt`, no schedule/recurrence
+  columns yet). No new dependencies (swipe uses the already-installed
+  `react-native-gesture-handler`). Spec: `.claude/specs/2-f7-task-management.md`.
+  Built on branch `feature/task-management`. **Awaiting `review-and-gate`
+  approval before any technical plan.**
 - **2026-09-09** — **Phase 2 decomposed into 6 ordered features (F7–F12)
   (`plan-phase`), gate passed → advances out of Backlog planning.** Mirrors
   Phase 1's granularity precedent: task management (CRUD+complete) kept
@@ -503,11 +617,10 @@ Not yet planned (`plan-phase`). Open questions: accounts/auth, conflict handling
 
 ## Now / Next
 
-- **Now:** **Phase 1 (F1–F6) is complete.** Phase 2 is decomposed into F7–F12
-  (`plan-phase`, approved 2026-09-09) but no feature has a spec yet.
-- **Next:** Write the feature spec for **F7 (Task management)** via
-  `write-feature-spec`, then gate it (`review-and-gate`) before any technical
-  plan or implementation.
+- **Now:** **F7 (Task management) is Done**, on branch
+  `feature/task-management` (not yet merged to `master`).
+- **Next:** Commit and open a PR for `feature/task-management`, merge, then
+  move to **F8 (Task list view)** — spec it via `write-feature-spec`.
 - **Workflow:** Each feature is built on its **own branch in a separate Claude
   Code session**; planning/decisions are tracked here on
   `feature/create-features`.
