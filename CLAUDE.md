@@ -48,8 +48,18 @@ verified on physical devices instead, which also caught and fixed a real bug:
 the on-device recognizer resets its transcript at each speech segment/pause,
 so `useVoiceCapture` now commits each finalized segment before the next one
 starts. See
-`PROGRESS.md`'s decision log for the full diagnosis.) See `PROGRESS.md` for
-pipeline state.
+`PROGRESS.md`'s decision log for the full diagnosis.) This completes Phase 1.
+
+Phase 2 implementation underway. **F7 (task management)** is built: the app
+now has a Notes | Tasks tab bar (`_layout.tsx`, wrapped in
+`GestureHandlerRootView`); the new Tasks tab lets the user add, edit
+(long-press → inline → auto-save on blur, same pattern as F4), complete (a
+checkbox per row), and delete a task via a new `tasks` table +
+`src/db/tasks.ts`. Delete is swipe-to-reveal: swiping a task reveals a
+"Delete" button (the swipe itself doesn't delete) and tapping that button
+deletes it. F7's list is deliberately unfiltered (all tasks, newest first) —
+no scheduling, recurrence, or reminders yet (F9/F11/F12), and open-only
+filtering is F8's job. See `PROGRESS.md` for pipeline state.
 
 **Tech stack (decided 2026-07-29, libs confirmed at F1):** React Native + Expo,
 Expo Router (navigation), `expo-sqlite` + `drizzle-orm`/`drizzle-kit`
