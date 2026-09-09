@@ -25,13 +25,40 @@ sync backend, accounts/auth (Phase 3); keyword search and note→task promotion
 React Native + Expo (TypeScript).** See decision log.
 
 ### Phase 2 — Tasks (Mobile)
-Not yet planned (`plan-phase`).
+
+| # | Feature | One-liner | Depends on | Stage |
+|---|---|---|---|---|
+| F7 | Task management | Add/edit/delete/complete a task — minimal, text-only, no title | F1 | Backlog |
+| F8 | Task list view | Default view: all open (incomplete) tasks | F7 | Backlog |
+| F9 | Task scheduling | Add a date & time to a task | F7 | Backlog |
+| F10 | Task time-based views | Browse tasks by day / week / month / year | F9 | Backlog |
+| F11 | Task recurrence | Daily, weekdays, weekends, specific weekdays, monthly, annually | F9 | Backlog |
+| F12 | Reminders & snooze | Push notification at due time (incl. recurring instances) + snooze overdue tasks | F9, F11 | Backlog |
+
+**Cut lines (out of scope for Phase 2):** web surface, sync backend,
+accounts/auth (Phase 3); keyword search, note→task promotion (Later);
+titles/tags/metadata on tasks (minimalism).
 
 ### Phase 3 — Web & Sync
 Not yet planned (`plan-phase`). Open questions: accounts/auth, conflict handling.
 
 ## Decision log
 
+- **2026-09-09** — **Phase 2 decomposed into 6 ordered features (F7–F12)
+  (`plan-phase`), gate passed → advances out of Backlog planning.** Mirrors
+  Phase 1's granularity precedent: task management (CRUD+complete) kept
+  separate from its default list view (like F2/F3), scheduling and recurrence
+  split into their own features before reminders, and reminders+snooze kept
+  as one feature (per the `reminders-and-snooze` skill's own scope) rather
+  than split per ideas-refined's two bullets. Two forks confirmed with the
+  user (`AskUserQuestion`): (1) keep the 6-feature granularity as proposed,
+  not coarser/finer; (2) **F12 (reminders & snooze) depends on both F9
+  (scheduling) AND F11 (recurrence)** — reminders ship once, correct for both
+  one-off and recurring tasks, rather than shipping early for one-off tasks
+  only and retrofitting recurring-task reminders later. Cut lines: web/sync/
+  accounts (Phase 3); search, note→task promotion (Later); titles/tags on
+  tasks (minimalism). No specs written yet — next step is `write-feature-spec`
+  for F7. Approved by: user (arup.chowdhary@gmail.com).
 - **2026-09-08** — **F6 (Voice capture): verified on a second physical
   device (Pixel 10 Pro, the user's primary phone) and one cosmetic fix
   applied.** Installed the same `arm64-v8a` debug build (matched the Pixel
@@ -476,10 +503,11 @@ Not yet planned (`plan-phase`). Open questions: accounts/auth, conflict handling
 
 ## Now / Next
 
-- **Now:** **F1–F5 are all Done and gated**, on `feature/time-based-browsing`
-  (not yet merged to `master`).
-- **Next:** Commit and open a PR for `feature/time-based-browsing`. Then pick
-  up **F6 (voice capture)**, the last Phase 1 feature.
+- **Now:** **Phase 1 (F1–F6) is complete.** Phase 2 is decomposed into F7–F12
+  (`plan-phase`, approved 2026-09-09) but no feature has a spec yet.
+- **Next:** Write the feature spec for **F7 (Task management)** via
+  `write-feature-spec`, then gate it (`review-and-gate`) before any technical
+  plan or implementation.
 - **Workflow:** Each feature is built on its **own branch in a separate Claude
   Code session**; planning/decisions are tracked here on
   `feature/create-features`.
