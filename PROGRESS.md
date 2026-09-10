@@ -29,7 +29,7 @@ React Native + Expo (TypeScript).** See decision log.
 | # | Feature | One-liner | Depends on | Stage |
 |---|---|---|---|---|
 | F7 | Task management | Add/edit/delete/complete a task — minimal, text-only, no title | F1 | Done |
-| F8 | Task list view | Default view: all open (incomplete) tasks | F7 | Backlog |
+| F8 | Task list view | Default view: all open (incomplete) tasks | F7 | Done |
 | F9 | Task scheduling | Add a date & time to a task | F7 | Backlog |
 | F10 | Task time-based views | Browse tasks by day / week / month / year | F9 | Backlog |
 | F11 | Task recurrence | Daily, weekdays, weekends, specific weekdays, monthly, annually | F9 | Backlog |
@@ -44,6 +44,51 @@ Not yet planned (`plan-phase`). Open questions: accounts/auth, conflict handling
 
 ## Decision log
 
+- **2026-09-10** — **F8 (Task list view): implementation gate passed
+  (review-and-gate) → F8 is Done.** All 9 spec DoD items verified against
+  the diff (matches `.claude/plans/2/f8-tasklist-view.plan.md` exactly — only
+  `src/db/tasks.ts` (new `openTasksQuery`), `src/app/tasks.tsx` (query swap),
+  `TaskList.tsx` (empty-state copy), and their two test files touched, no
+  scope creep). `npm test` (88/88, 1 new test), `tsc`, `expo lint`,
+  `prettier --check .` all clean (only the pre-existing, unrelated
+  `todolist.code-workspace` warning). Grep check confirmed no forbidden
+  surface introduced. **On-device (Pixel_10_Pro emulator):** added tasks,
+  confirmed only open tasks show (newest-first); completing a task removed
+  it from the list immediately; confirmed directly via the on-device SQLite
+  file that a completed task is still stored (`completed=1`), not deleted;
+  force-stop + relaunch preserved both the hidden-completed and
+  visible-open states; "All caught up!" empty state confirmed both on a
+  fresh list and after completing the last remaining task. Long-press-edit
+  and swipe-to-delete were also re-verified live on the filtered (open-task)
+  list — closing a gap from the first verification pass, which had only
+  covered "add" — confirming F7's edit/delete interactions are unaffected by
+  F8's filtering (delete needed a retry on the second `adb` tap, matching
+  the already-documented `adb`-synthetic-tap-vs-gesture-recognizer quirk
+  from the F7 session, not an app defect). No changes requested. Approved
+  by: user (arup.chowdhary@gmail.com).
+- **2026-09-10** — **F8 (Task list view): technical plan approved
+  (review-and-gate).** Plan: `.claude/plans/2/f8-tasklist-view.plan.md` — a
+  new `openTasksQuery()` in `src/db/tasks.ts` (filters on `completed = false`,
+  newest-first), `src/app/tasks.tsx` swapped to use it, and `TaskList.tsx`'s
+  empty-state string changed to "All caught up!". No schema change, no new
+  dependencies, no other component touched. One review finding — DoD 6's
+  grep-checkable "no forbidden surface" check wasn't an explicit
+  implementation step — **fixed** before approval (added as step 6, ahead of
+  on-device verification). Approved by: user (arup.chowdhary@gmail.com).
+  **Awaiting `implement-feature`.**
+- **2026-09-10** — **F8 (Task list view): spec written and gate passed
+  (elicited via AskUserQuestion before drafting).** Decisions confirmed with
+  the user: completed tasks are **fully hidden** from the Tasks tab (no
+  show-completed toggle or archive — completing a task removes it from view
+  immediately, with no transient delay/animation); the empty state changes
+  from F7's "No tasks yet" to **"All caught up!"** (covers both "no tasks
+  exist" and "all tasks are completed"). F8 is filtering-only: a new
+  open-only query in `src/db/tasks.ts` plus the empty-state copy change in
+  `TaskList` — no schema change, no new UI, add/edit/delete/checkbox
+  behavior unchanged from F7. Spec: `.claude/specs/2-f8-tasklist-view.md`.
+  Built on branch `feature/tasklist-view`. Approved by: user
+  (arup.chowdhary@gmail.com). **Awaiting `write-technical-plan` (no
+  implementation yet, per explicit user instruction).**
 - **2026-09-09** — **F7 (Task management): implementation gate passed
   (review-and-gate) → F7 is Done.** All 11 spec DoD items verified against
   the diff (headless: 87/87 tests, `tsc`/`expo lint`/`prettier --check .`
@@ -615,12 +660,10 @@ Not yet planned (`plan-phase`). Open questions: accounts/auth, conflict handling
     notifications (Phase 2) `expo-notifications`.
   - Approved by: user (arup.chowdhary@gmail.com).
 
-## Now / Next
-
-- **Now:** **F7 (Task management) is Done**, on branch
-  `feature/task-management` (not yet merged to `master`).
-- **Next:** Commit and open a PR for `feature/task-management`, merge, then
-  move to **F8 (Task list view)** — spec it via `write-feature-spec`.
+- **Now:** **F8 (Task list view) is Done**, on branch `feature/tasklist-view`
+  (not yet merged to `master`).
+- **Next:** Commit and open a PR for `feature/tasklist-view`, merge, then
+  move to **F9 (Task scheduling)** — spec it via `write-feature-spec`.
 - **Workflow:** Each feature is built on its **own branch in a separate Claude
   Code session**; planning/decisions are tracked here on
   `feature/create-features`.

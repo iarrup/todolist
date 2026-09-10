@@ -49,6 +49,15 @@ function listAll(db: Db): Task[] {
   return db.select().from(tasks).orderBy(desc(tasks.createdAt)).all();
 }
 
+function listOpen(db: Db): Task[] {
+  return db
+    .select()
+    .from(tasks)
+    .where(eq(tasks.completed, false))
+    .orderBy(desc(tasks.createdAt))
+    .all();
+}
+
 function updateText(db: Db, id: string, text: string, updatedAt: number): void {
   db.update(tasks).set({ text, updatedAt }).where(eq(tasks.id, id)).run();
 }
@@ -89,6 +98,20 @@ describe('tasks storage', () => {
     expect(all).toHaveLength(2);
     expect(all[0].text).toBe('newer, open');
     expect(all[1].text).toBe('older, completed');
+  });
+
+  it('lists only open tasks, newest-first, while listAll still shows completed ones too (F8)', () => {
+    const db = makeDb();
+    seed(db, 'older, completed', 1000, true);
+    seed(db, 'newer, open', 2000, false);
+    seed(db, 'newest, also completed', 3000, true);
+
+    const open = listOpen(db);
+    expect(open).toHaveLength(1);
+    expect(open[0].text).toBe('newer, open');
+
+    const all = listAll(db);
+    expect(all).toHaveLength(3);
   });
 
   it('updates a task’s text and updatedAt, leaving id, createdAt, and completed unchanged', () => {
