@@ -4,17 +4,25 @@ import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet } from 'react-nati
 
 import { TaskComposer } from '@/components/TaskComposer';
 import { TaskList } from '@/components/TaskList';
-import { deleteTask, insertTask, setTaskCompleted, tasksQuery, updateTaskText } from '@/db/tasks';
+import {
+  deleteTask,
+  insertTask,
+  openTasksQuery,
+  setTaskCompleted,
+  updateTaskText,
+} from '@/db/tasks';
 
 /**
- * Tasks tab (F7) — a minimal, unfiltered task list (all tasks, newest
- * first; open-only filtering is F8's job) with add/edit/complete/delete.
- * Reads tasks from the local database (live) via tasksQuery + useLiveQuery,
- * and lets the user capture new ones through the pinned TaskComposer. A task
- * is plain text plus a completed flag (no titles, no metadata).
+ * Tasks tab (F7 + F8) — the default view is open (incomplete) tasks only,
+ * newest first, with add/edit/complete/delete. Reads tasks from the local
+ * database (live) via openTasksQuery + useLiveQuery, and lets the user
+ * capture new ones through the pinned TaskComposer. A task is plain text
+ * plus a completed flag (no titles, no metadata). Completing a task removes
+ * it from this list immediately (no delay/animation); completed tasks are
+ * not shown here (no toggle/archive) — see F8's spec.
  */
 export default function TasksScreen() {
-  const { data: tasks } = useLiveQuery(tasksQuery(), []);
+  const { data: tasks } = useLiveQuery(openTasksQuery(), []);
 
   // Same Android edge-to-edge keyboard workaround as index.tsx (duplicated
   // locally rather than extracted into a shared hook — see the technical

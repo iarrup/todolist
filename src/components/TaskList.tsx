@@ -6,10 +6,10 @@ import { useTaskEditing } from '@/hooks/useTaskEditing';
 import { TaskRow } from './TaskRow';
 
 /**
- * Renders the given tasks as-is (ordering is the caller's responsibility —
- * this component does not sort or filter; F7's list is deliberately
- * unfiltered, open-only filtering is F8's job), or an empty state when there
- * are none. Long-pressing a task's text opens it for inline editing; the
+ * Renders the given tasks as-is (ordering and filtering are the caller's
+ * responsibility — this component does not sort or filter; the Tasks screen
+ * passes it only open tasks per F8), or an empty state when there are none.
+ * Long-pressing a task's text opens it for inline editing; the
  * edit is committed via `onEditTask` on blur, unless cleared to
  * empty/whitespace, in which case it reverts. Tapping a task's checkbox
  * toggles `onToggleComplete`; completing a swipe deletes via `onDeleteTask`.
@@ -27,7 +27,7 @@ export function TaskList({ tasks, onEditTask, onToggleComplete, onDeleteTask }: 
   if (tasks.length === 0) {
     return (
       <View style={styles.emptyState}>
-        <Text style={styles.emptyText}>No tasks yet</Text>
+        <Text style={styles.emptyText}>All caught up!</Text>
       </View>
     );
   }

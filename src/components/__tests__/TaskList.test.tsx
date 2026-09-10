@@ -23,7 +23,7 @@ describe('TaskList', () => {
       <TaskList tasks={[]} onEditTask={noop} onToggleComplete={noop} onDeleteTask={noop} />,
     );
 
-    expect(getByText('No tasks yet')).toBeTruthy();
+    expect(getByText('All caught up!')).toBeTruthy();
     expect(queryAllByTestId('task-text')).toHaveLength(0);
   });
 
@@ -37,7 +37,7 @@ describe('TaskList', () => {
     expect(texts).toEqual(['oldest', 'newest', 'middle']);
   });
 
-  it('renders both open and completed tasks (F7 is unfiltered)', () => {
+  it('renders whatever tasks it is given, without filtering by completed state', () => {
     const tasks = [task('1', 'open one', 2, false), task('2', 'done one', 1, true)];
     const { getByText } = render(
       <TaskList tasks={tasks} onEditTask={noop} onToggleComplete={noop} onDeleteTask={noop} />,

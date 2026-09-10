@@ -24,11 +24,19 @@ export async function insertTask(text: string): Promise<Task> {
 
 /**
  * All tasks, newest-first, unfiltered (open + completed) — F7 scope only.
- * F8 adds open-only filtering on top of this. Returned unexecuted so screens
- * can pass it to `useLiveQuery`.
+ * Superseded as the Tasks tab's source by `openTasksQuery` (F8); kept since
+ * nothing requires removing a working query.
  */
 export function tasksQuery() {
   return db.select().from(tasks).orderBy(desc(tasks.createdAt));
+}
+
+/**
+ * Open (incomplete) tasks, newest-created-first — the Tasks tab's default
+ * view (F8). Returned unexecuted so screens can pass it to `useLiveQuery`.
+ */
+export function openTasksQuery() {
+  return db.select().from(tasks).where(eq(tasks.completed, false)).orderBy(desc(tasks.createdAt));
 }
 
 /** Update a task's text (and `updatedAt`); `id` and `createdAt` are untouched. */
