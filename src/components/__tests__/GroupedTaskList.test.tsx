@@ -13,6 +13,8 @@ const task = (id: string, text: string, dueAt: number, completed = false): Task 
   text,
   completed,
   dueAt,
+  recurrence: null,
+  recurrenceDays: null,
   createdAt: dueAt,
   updatedAt: dueAt,
 });
@@ -34,6 +36,7 @@ describe('GroupedTaskList', () => {
         onToggleComplete={noop}
         onDeleteTask={noop}
         onScheduleTask={noop}
+        onSetRecurrence={noop}
         emptyMessage="No tasks this week"
       />,
     );
@@ -55,6 +58,7 @@ describe('GroupedTaskList', () => {
         onToggleComplete={noop}
         onDeleteTask={noop}
         onScheduleTask={noop}
+        onSetRecurrence={noop}
         emptyMessage="No tasks this week"
       />,
     );
@@ -74,6 +78,7 @@ describe('GroupedTaskList', () => {
         onToggleComplete={noop}
         onDeleteTask={noop}
         onScheduleTask={noop}
+        onSetRecurrence={noop}
         emptyMessage="No tasks this week"
       />,
     );
@@ -92,6 +97,7 @@ describe('GroupedTaskList', () => {
         onToggleComplete={onToggleComplete}
         onDeleteTask={noop}
         onScheduleTask={onScheduleTask}
+        onSetRecurrence={noop}
         emptyMessage="No tasks this week"
       />,
     );
@@ -113,6 +119,7 @@ describe('GroupedTaskList', () => {
         onToggleComplete={noop}
         onDeleteTask={noop}
         onScheduleTask={noop}
+        onSetRecurrence={noop}
         emptyMessage="No tasks this week"
       />,
     );

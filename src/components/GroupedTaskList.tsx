@@ -4,6 +4,7 @@ import type { Task } from '@/db/schema';
 import { useTaskEditing } from '@/hooks/useTaskEditing';
 import { formatDayHeading } from '@/lib/formatDay';
 import { groupTasksByDay } from '@/lib/groupTasksByDay';
+import type { Recurrence } from '@/lib/recurrence';
 
 import { TaskRow } from './TaskRow';
 
@@ -24,6 +25,11 @@ interface GroupedTaskListProps {
   onToggleComplete: (id: string, completed: boolean) => void;
   onDeleteTask: (id: string) => void;
   onScheduleTask: (id: string, dueAt: number | null) => void;
+  onSetRecurrence: (
+    id: string,
+    recurrence: Recurrence | null,
+    recurrenceDays: number[] | null,
+  ) => void;
   emptyMessage: string;
 }
 
@@ -33,6 +39,7 @@ export function GroupedTaskList({
   onToggleComplete,
   onDeleteTask,
   onScheduleTask,
+  onSetRecurrence,
   emptyMessage,
 }: GroupedTaskListProps) {
   const editing = useTaskEditing(onEditTask);
@@ -68,6 +75,7 @@ export function GroupedTaskList({
           onToggleComplete={onToggleComplete}
           onDeleteTask={onDeleteTask}
           onScheduleTask={onScheduleTask}
+          onSetRecurrence={onSetRecurrence}
         />
       )}
     />

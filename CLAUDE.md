@@ -79,8 +79,22 @@ notes' newest-first order): `GroupedTaskList` for Week/Month (day
 sub-headings), `YearGroupedTaskList` for Year (month sub-headings, each
 containing day sub-headings). Unscheduled tasks never appear in Browse
 (Open mode is the only way to see them); `TaskComposer` is hidden in Browse
-mode (adding a task stays an Open-mode-only action). No recurrence or
-reminders yet (F11/F12). See `PROGRESS.md` for pipeline state.
+mode (adding a task stays an Open-mode-only action). **F11 (task
+recurrence)** is built: a task can now repeat — Daily, Weekdays, Weekends,
+Specific days of the week, Monthly, or Annually — via two new nullable
+`recurrence`/`recurrenceDays` columns on `tasks`. Recurrence is a
+**single-row, roll-forward model**: completing a recurring task doesn't set
+it completed — it advances `dueAt` to the next occurrence (via the new
+`src/lib/nextOccurrence.ts`, month/year clamping the same way `stepDate.ts`
+already does) and leaves the task open, so it never disappears from Open
+mode, just shows an updated date. A new `RepeatPicker` component (a plain
+`Modal`, no new dependency) offers the six types plus "None," with a
+weekday multi-select for "Specific days" that blocks confirming with zero
+days chosen; it's reused from both `TaskComposer` (at creation) and
+`TaskRow` (on an existing scheduled task) — recurrence is only reachable
+once a task has a schedule, and clearing a schedule clears its recurrence
+too. Reminders (F12) are next; no notification/snooze code yet.
+See `PROGRESS.md` for pipeline state.
 
 **Tech stack (decided 2026-07-29, libs confirmed at F1):** React Native + Expo,
 Expo Router (navigation), `expo-sqlite` + `drizzle-orm`/`drizzle-kit`

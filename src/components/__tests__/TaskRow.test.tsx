@@ -18,6 +18,8 @@ const task = (id: string, text: string, completed = false, dueAt: number | null 
   text,
   completed,
   dueAt,
+  recurrence: null,
+  recurrenceDays: null,
   createdAt: 1,
   updatedAt: 1,
 });
@@ -45,6 +47,7 @@ describe('TaskRow', () => {
         onToggleComplete={jest.fn()}
         onDeleteTask={jest.fn()}
         onScheduleTask={jest.fn()}
+        onSetRecurrence={jest.fn()}
       />,
     );
 
@@ -60,6 +63,7 @@ describe('TaskRow', () => {
         onToggleComplete={jest.fn()}
         onDeleteTask={jest.fn()}
         onScheduleTask={jest.fn()}
+        onSetRecurrence={jest.fn()}
       />,
     );
 
@@ -79,6 +83,7 @@ describe('TaskRow', () => {
         onToggleComplete={onToggleComplete}
         onDeleteTask={jest.fn()}
         onScheduleTask={jest.fn()}
+        onSetRecurrence={jest.fn()}
       />,
     );
 
@@ -96,6 +101,7 @@ describe('TaskRow', () => {
         onToggleComplete={jest.fn()}
         onDeleteTask={jest.fn()}
         onScheduleTask={jest.fn()}
+        onSetRecurrence={jest.fn()}
       />,
     );
 
@@ -119,6 +125,7 @@ describe('TaskRow', () => {
         onToggleComplete={jest.fn()}
         onDeleteTask={jest.fn()}
         onScheduleTask={jest.fn()}
+        onSetRecurrence={jest.fn()}
       />,
     );
 
@@ -141,6 +148,7 @@ describe('TaskRow', () => {
         onToggleComplete={jest.fn()}
         onDeleteTask={jest.fn()}
         onScheduleTask={jest.fn()}
+        onSetRecurrence={jest.fn()}
       />,
     );
 
@@ -162,6 +170,7 @@ describe('TaskRow', () => {
         onToggleComplete={jest.fn()}
         onDeleteTask={onDeleteTask}
         onScheduleTask={jest.fn()}
+        onSetRecurrence={jest.fn()}
       />,
     );
 
@@ -178,6 +187,7 @@ describe('TaskRow', () => {
         onToggleComplete={jest.fn()}
         onDeleteTask={onDeleteTask}
         onScheduleTask={jest.fn()}
+        onSetRecurrence={jest.fn()}
       />,
     );
 
@@ -194,6 +204,7 @@ describe('TaskRow', () => {
         onToggleComplete={jest.fn()}
         onDeleteTask={jest.fn()}
         onScheduleTask={jest.fn()}
+        onSetRecurrence={jest.fn()}
       />,
     );
 
@@ -211,6 +222,7 @@ describe('TaskRow', () => {
         onToggleComplete={jest.fn()}
         onDeleteTask={jest.fn()}
         onScheduleTask={jest.fn()}
+        onSetRecurrence={jest.fn()}
       />,
     );
 
@@ -229,6 +241,7 @@ describe('TaskRow', () => {
         onToggleComplete={jest.fn()}
         onDeleteTask={jest.fn()}
         onScheduleTask={onScheduleTask}
+        onSetRecurrence={jest.fn()}
       />,
     );
 
@@ -249,6 +262,7 @@ describe('TaskRow', () => {
         onToggleComplete={jest.fn()}
         onDeleteTask={jest.fn()}
         onScheduleTask={jest.fn()}
+        onSetRecurrence={jest.fn()}
       />,
     );
 
@@ -267,6 +281,7 @@ describe('TaskRow', () => {
         onToggleComplete={jest.fn()}
         onDeleteTask={jest.fn()}
         onScheduleTask={onScheduleTask}
+        onSetRecurrence={jest.fn()}
       />,
     );
 
@@ -286,6 +301,7 @@ describe('TaskRow', () => {
         onToggleComplete={jest.fn()}
         onDeleteTask={jest.fn()}
         onScheduleTask={onScheduleTask}
+        onSetRecurrence={jest.fn()}
       />,
     );
 

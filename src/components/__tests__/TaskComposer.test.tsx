@@ -29,7 +29,7 @@ describe('TaskComposer', () => {
     fireEvent.press(getByTestId('task-send'));
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
-    expect(onSubmit).toHaveBeenCalledWith('buy milk', null);
+    expect(onSubmit).toHaveBeenCalledWith('buy milk', null, null, null);
     expect(getByTestId('task-input').props.value).toBe('');
   });
 
@@ -40,7 +40,7 @@ describe('TaskComposer', () => {
     fireEvent.changeText(getByTestId('task-input'), 'line one\nline two');
     fireEvent.press(getByTestId('task-send'));
 
-    expect(onSubmit).toHaveBeenCalledWith('line one\nline two', null);
+    expect(onSubmit).toHaveBeenCalledWith('line one\nline two', null, null, null);
   });
 
   it('does not submit when the field is empty or whitespace-only', () => {
@@ -73,7 +73,12 @@ describe('TaskComposer', () => {
     fireEvent.changeText(getByTestId('task-input'), 'buy milk');
     fireEvent.press(getByTestId('task-send'));
 
-    expect(onSubmit).toHaveBeenCalledWith('buy milk', new Date(2026, 8, 20, 15, 30).getTime());
+    expect(onSubmit).toHaveBeenCalledWith(
+      'buy milk',
+      new Date(2026, 8, 20, 15, 30).getTime(),
+      null,
+      null,
+    );
   });
 
   it('sending resets the pending schedule for the next task', async () => {
@@ -113,5 +118,89 @@ describe('TaskComposer', () => {
 
     expect(queryByTestId('task-composer-due-at')).toBeNull();
     expect(mockPickDateTime).toHaveBeenCalledTimes(1);
+  });
+
+  it('the Repeat control does not appear until a schedule is pending (F11)', () => {
+    const { queryByTestId } = render(<TaskComposer onSubmit={jest.fn()} />);
+
+    expect(queryByTestId('task-composer-repeat')).toBeNull();
+  });
+
+  it('scheduling and picking a repeat type sends the recurrence with the task (F11)', async () => {
+    mockPickDateTime.mockResolvedValueOnce(new Date(2026, 8, 20, 15, 30));
+    const onSubmit = jest.fn();
+    const { getByTestId, findByTestId } = render(<TaskComposer onSubmit={onSubmit} />);
+
+    fireEvent.press(getByTestId('task-composer-add-schedule'));
+    await findByTestId('task-composer-due-at');
+
+    fireEvent.press(getByTestId('task-composer-repeat'));
+    fireEvent.press(getByTestId('repeat-option-daily'));
+    fireEvent.press(getByTestId('repeat-confirm'));
+
+    fireEvent.changeText(getByTestId('task-input'), 'water plants');
+    fireEvent.press(getByTestId('task-send'));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      'water plants',
+      new Date(2026, 8, 20, 15, 30).getTime(),
+      'daily',
+      null,
+    );
+  });
+
+  it('scheduling without touching Repeat still submits recurrence: null (regression, F11)', async () => {
+    mockPickDateTime.mockResolvedValueOnce(new Date(2026, 8, 20, 15, 30));
+    const onSubmit = jest.fn();
+    const { getByTestId, findByTestId } = render(<TaskComposer onSubmit={onSubmit} />);
+
+    fireEvent.press(getByTestId('task-composer-add-schedule'));
+    await findByTestId('task-composer-due-at');
+    fireEvent.changeText(getByTestId('task-input'), 'buy milk');
+    fireEvent.press(getByTestId('task-send'));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      'buy milk',
+      new Date(2026, 8, 20, 15, 30).getTime(),
+      null,
+      null,
+    );
+  });
+
+  it('clearing the pending schedule also clears any pending recurrence (F11)', async () => {
+    mockPickDateTime.mockResolvedValueOnce(new Date(2026, 8, 20, 15, 30));
+    const { getByTestId, findByTestId, queryByTestId } = render(
+      <TaskComposer onSubmit={jest.fn()} />,
+    );
+
+    fireEvent.press(getByTestId('task-composer-add-schedule'));
+    await findByTestId('task-composer-due-at');
+    fireEvent.press(getByTestId('task-composer-repeat'));
+    fireEvent.press(getByTestId('repeat-option-daily'));
+    fireEvent.press(getByTestId('repeat-confirm'));
+
+    fireEvent.press(getByTestId('task-composer-clear-schedule'));
+
+    expect(queryByTestId('task-composer-repeat')).toBeNull();
+    expect(queryByTestId('task-composer-due-at')).toBeNull();
+  });
+
+  it('sending resets pending recurrence too, for the next task (F11)', async () => {
+    mockPickDateTime.mockResolvedValueOnce(new Date(2026, 8, 20, 15, 30));
+    const { getByTestId, findByTestId, queryByTestId } = render(
+      <TaskComposer onSubmit={jest.fn()} />,
+    );
+
+    fireEvent.press(getByTestId('task-composer-add-schedule'));
+    await findByTestId('task-composer-due-at');
+    fireEvent.press(getByTestId('task-composer-repeat'));
+    fireEvent.press(getByTestId('repeat-option-daily'));
+    fireEvent.press(getByTestId('repeat-confirm'));
+
+    fireEvent.changeText(getByTestId('task-input'), 'buy milk');
+    fireEvent.press(getByTestId('task-send'));
+
+    expect(queryByTestId('task-composer-due-at')).toBeNull();
+    expect(queryByTestId('task-composer-repeat')).toBeNull();
   });
 });

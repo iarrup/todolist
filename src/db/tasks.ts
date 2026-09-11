@@ -7,6 +7,8 @@ import { startOfMonth, endOfMonth } from './monthRange';
 import { startOfWeek, endOfWeek } from './weekRange';
 import { startOfYear, endOfYear } from './yearRange';
 import { tasks, type Task } from './schema';
+import { nextOccurrence } from '@/lib/nextOccurrence';
+import { parseRecurrenceDays, serializeRecurrenceDays, type Recurrence } from '@/lib/recurrence';
 import type { TaskGranularity } from '@/lib/taskGranularity';
 
 /**
@@ -16,14 +18,27 @@ import type { TaskGranularity } from '@/lib/taskGranularity';
 /**
  * Insert a task (id + timestamps generated here) and return the stored row.
  * `dueAt` is optional (epoch ms); omitted/`null` means unscheduled (F9).
+ * `recurrence`/`recurrenceDays` are optional (F11); omitted/`null` means the
+ * task does not repeat. Recurrence without a `dueAt` is accepted here (no
+ * runtime validation) — the invariant that recurrence requires a schedule is
+ * enforced by the UI (the Repeat control is only reachable once scheduled),
+ * not by this function; `setTaskCompleted` below defends against the
+ * violation case rather than trusting callers.
  */
-export async function insertTask(text: string, dueAt: number | null = null): Promise<Task> {
+export async function insertTask(
+  text: string,
+  dueAt: number | null = null,
+  recurrence: Recurrence | null = null,
+  recurrenceDays: number[] | null = null,
+): Promise<Task> {
   const now = Date.now();
   const row: Task = {
     id: Crypto.randomUUID(),
     text,
     completed: false,
     dueAt,
+    recurrence,
+    recurrenceDays: serializeRecurrenceDays(recurrenceDays),
     createdAt: now,
     updatedAt: now,
   };
@@ -53,17 +68,72 @@ export async function updateTaskText(id: string, text: string): Promise<void> {
   await db.update(tasks).set({ text, updatedAt: Date.now() }).where(eq(tasks.id, id));
 }
 
-/** Set a task's completed flag (and `updatedAt`). */
+/**
+ * Set a task's completed flag (and `updatedAt`). For a recurring task
+ * (F11), completing it (`completed === true`) does **not** set
+ * `completed = true` — instead it rolls `dueAt` forward to the next
+ * occurrence via `nextOccurrence` and leaves `completed = false`, so the
+ * task stays open. That recurring path is taken only when both
+ * `recurrence` and `dueAt` are non-null on the stored row: the "recurrence
+ * requires a schedule" invariant is enforced by the UI, not by
+ * `insertTask`'s signature, so this function must not assume
+ * `recurrence != null` implies `dueAt != null` — every other case
+ * (non-recurring, unchecking, or that invariant-violation case) falls
+ * through to the plain single-statement update F7/F8 always did.
+ */
 export async function setTaskCompleted(id: string, completed: boolean): Promise<void> {
+  if (completed) {
+    const [task] = await db.select().from(tasks).where(eq(tasks.id, id));
+    if (task?.recurrence != null && task.dueAt != null) {
+      const next = nextOccurrence(
+        new Date(task.dueAt),
+        task.recurrence,
+        parseRecurrenceDays(task.recurrenceDays),
+      );
+      await db
+        .update(tasks)
+        .set({ dueAt: next.getTime(), updatedAt: Date.now() })
+        .where(eq(tasks.id, id));
+      return;
+    }
+  }
   await db.update(tasks).set({ completed, updatedAt: Date.now() }).where(eq(tasks.id, id));
 }
 
 /**
  * Set or clear a task's due moment (F9). `dueAt` is epoch ms; `null` clears
- * the schedule, returning the task to unscheduled. Bumps `updatedAt`.
+ * the schedule, returning the task to unscheduled. Clearing also clears any
+ * recurrence (F11) — a recurrence rule without an anchor date is invalid
+ * state. Bumps `updatedAt`.
  */
 export async function updateTaskSchedule(id: string, dueAt: number | null): Promise<void> {
-  await db.update(tasks).set({ dueAt, updatedAt: Date.now() }).where(eq(tasks.id, id));
+  const updates: Partial<Task> = { dueAt, updatedAt: Date.now() };
+  if (dueAt === null) {
+    updates.recurrence = null;
+    updates.recurrenceDays = null;
+  }
+  await db.update(tasks).set(updates).where(eq(tasks.id, id));
+}
+
+/**
+ * Set, change, or clear a task's recurrence rule (F11), independent of its
+ * `dueAt`. Does not validate that `dueAt` is set — that invariant is a
+ * UI-level gate (the Repeat control is only reachable once a task is
+ * scheduled). Bumps `updatedAt`.
+ */
+export async function updateTaskRecurrence(
+  id: string,
+  recurrence: Recurrence | null,
+  recurrenceDays: number[] | null,
+): Promise<void> {
+  await db
+    .update(tasks)
+    .set({
+      recurrence,
+      recurrenceDays: serializeRecurrenceDays(recurrenceDays),
+      updatedAt: Date.now(),
+    })
+    .where(eq(tasks.id, id));
 }
 
 /** Delete a task. */

@@ -1,11 +1,14 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 
+import { RepeatPicker } from './RepeatPicker';
 import type { Task } from '@/db/schema';
 import type { TaskEditingController } from '@/hooks/useTaskEditing';
+import { formatRecurrence } from '@/lib/formatRecurrence';
 import { formatTaskDueAt } from '@/lib/formatTaskDueAt';
 import { pickDateTime } from '@/lib/pickDateTime';
+import { parseRecurrenceDays, type Recurrence } from '@/lib/recurrence';
 
 /**
  * A single task row: a checkbox (toggles complete), static text or (when
@@ -19,6 +22,12 @@ import { pickDateTime } from '@/lib/pickDateTime';
  * "add schedule" icon; a scheduled task shows its due date/time (tap to
  * change it) plus a small clear button. Cancelling the native date/time
  * picker at either step leaves the task's existing schedule untouched.
+ *
+ * A scheduled task also shows a Repeat affordance (F11) — no Repeat control
+ * at all while unscheduled, since recurrence has no meaning without a
+ * schedule. Clearing the schedule (the existing "×" button) clears
+ * recurrence too, server-side (see `db/tasks.ts`'s `updateTaskSchedule`) —
+ * no extra wiring needed here for that.
  */
 interface TaskRowProps {
   task: Task;
@@ -26,6 +35,11 @@ interface TaskRowProps {
   onToggleComplete: (id: string, completed: boolean) => void;
   onDeleteTask: (id: string) => void;
   onScheduleTask: (id: string, dueAt: number | null) => void;
+  onSetRecurrence: (
+    id: string,
+    recurrence: Recurrence | null,
+    recurrenceDays: number[] | null,
+  ) => void;
 }
 
 export function TaskRow({
@@ -34,9 +48,11 @@ export function TaskRow({
   onToggleComplete,
   onDeleteTask,
   onScheduleTask,
+  onSetRecurrence,
 }: TaskRowProps) {
   const { editingId, draftText, setDraftText, handleLongPress, commitEdit } = editing;
   const swipeableRef = useRef<Swipeable>(null);
+  const [repeatPickerVisible, setRepeatPickerVisible] = useState(false);
 
   const handleOpenPicker = async () => {
     const initial = task.dueAt ? new Date(task.dueAt) : new Date();
@@ -106,6 +122,18 @@ export function TaskRow({
                   <Text style={styles.dueAtText}>{formatTaskDueAt(task.dueAt)}</Text>
                 </Pressable>
                 <Pressable
+                  testID="task-repeat"
+                  accessibilityRole="button"
+                  accessibilityLabel="Repeat"
+                  onPress={() => setRepeatPickerVisible(true)}
+                  hitSlop={8}
+                >
+                  <Text style={styles.repeatText}>
+                    {formatRecurrence(task.recurrence, parseRecurrenceDays(task.recurrenceDays)) ??
+                      'Repeat'}
+                  </Text>
+                </Pressable>
+                <Pressable
                   testID="task-clear-schedule"
                   accessibilityRole="button"
                   accessibilityLabel="Clear schedule"
@@ -130,6 +158,16 @@ export function TaskRow({
           </View>
         )}
       </View>
+      <RepeatPicker
+        visible={repeatPickerVisible}
+        recurrence={task.recurrence}
+        recurrenceDays={parseRecurrenceDays(task.recurrenceDays)}
+        onConfirm={(recurrence, recurrenceDays) => {
+          setRepeatPickerVisible(false);
+          onSetRecurrence(task.id, recurrence, recurrenceDays);
+        }}
+        onCancel={() => setRepeatPickerVisible(false)}
+      />
     </Swipeable>
   );
 }
@@ -169,6 +207,10 @@ const styles = StyleSheet.create({
   dueAtText: {
     fontSize: 13,
     color: '#208AEF',
+  },
+  repeatText: {
+    fontSize: 13,
+    color: '#8a8a8e',
   },
   clearScheduleGlyph: {
     fontSize: 16,

@@ -22,6 +22,13 @@
       "when": 1789084761977,
       "tag": "0002_oval_doorman",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1789094799535,
+      "tag": "0003_majestic_war_machine",
+      "breakpoints": true
     }
   ]
 }

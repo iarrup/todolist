@@ -21,6 +21,8 @@ import { endOfMonth, startOfMonth } from '../monthRange';
 import { endOfWeek, startOfWeek } from '../weekRange';
 import { endOfYear, startOfYear } from '../yearRange';
 import { tasks, type Task } from '../schema';
+import { nextOccurrence } from '@/lib/nextOccurrence';
+import { parseRecurrenceDays, serializeRecurrenceDays, type Recurrence } from '@/lib/recurrence';
 import type { TaskGranularity } from '@/lib/taskGranularity';
 
 const DRIZZLE_DIR = path.join(__dirname, '../../../drizzle');
@@ -50,8 +52,19 @@ function seed(
   createdAt: number,
   completed = false,
   dueAt: number | null = null,
+  recurrence: Recurrence | null = null,
+  recurrenceDays: number[] | null = null,
 ): Task {
-  const row: Task = { id: randomUUID(), text, completed, dueAt, createdAt, updatedAt: createdAt };
+  const row: Task = {
+    id: randomUUID(),
+    text,
+    completed,
+    dueAt,
+    recurrence,
+    recurrenceDays: serializeRecurrenceDays(recurrenceDays),
+    createdAt,
+    updatedAt: createdAt,
+  };
   db.insert(tasks).values(row).run();
   return row;
 }
@@ -73,12 +86,45 @@ function updateText(db: Db, id: string, text: string, updatedAt: number): void {
   db.update(tasks).set({ text, updatedAt }).where(eq(tasks.id, id)).run();
 }
 
+/** Mirrors db/tasks.ts's setTaskCompleted, including its F11 recurrence-aware branch. */
 function setCompleted(db: Db, id: string, completed: boolean, updatedAt: number): void {
+  if (completed) {
+    const task = findById(db, id);
+    if (task?.recurrence != null && task.dueAt != null) {
+      const next = nextOccurrence(
+        new Date(task.dueAt),
+        task.recurrence,
+        parseRecurrenceDays(task.recurrenceDays),
+      );
+      db.update(tasks).set({ dueAt: next.getTime(), updatedAt }).where(eq(tasks.id, id)).run();
+      return;
+    }
+  }
   db.update(tasks).set({ completed, updatedAt }).where(eq(tasks.id, id)).run();
 }
 
+/** Mirrors db/tasks.ts's updateTaskSchedule, including clearing recurrence when dueAt clears. */
 function setSchedule(db: Db, id: string, dueAt: number | null, updatedAt: number): void {
-  db.update(tasks).set({ dueAt, updatedAt }).where(eq(tasks.id, id)).run();
+  const updates: Partial<Task> = { dueAt, updatedAt };
+  if (dueAt === null) {
+    updates.recurrence = null;
+    updates.recurrenceDays = null;
+  }
+  db.update(tasks).set(updates).where(eq(tasks.id, id)).run();
+}
+
+/** Mirrors db/tasks.ts's updateTaskRecurrence. */
+function setRecurrence(
+  db: Db,
+  id: string,
+  recurrence: Recurrence | null,
+  recurrenceDays: number[] | null,
+  updatedAt: number,
+): void {
+  db.update(tasks)
+    .set({ recurrence, recurrenceDays: serializeRecurrenceDays(recurrenceDays), updatedAt })
+    .where(eq(tasks.id, id))
+    .run();
 }
 
 function removeTask(db: Db, id: string): void {
@@ -321,5 +367,112 @@ describe('tasks storage', () => {
         .map((t) => t.text)
         .sort(),
     ).toEqual(['in-day', 'in-week', 'in-month', 'in-year'].sort());
+  });
+
+  it('round-trips an inserted task with a recurrence rule (F11)', () => {
+    const db = makeDb();
+    const dueAt = new Date(2026, 8, 20, 9, 0).getTime();
+    const written = seed(
+      db,
+      'take out trash',
+      Date.now(),
+      false,
+      dueAt,
+      'specific-days',
+      [1, 3, 5],
+    );
+
+    const found = findById(db, written.id);
+    expect(found?.recurrence).toBe('specific-days');
+    expect(found?.recurrenceDays).toBe('1,3,5');
+  });
+
+  it('completing a daily recurring task rolls dueAt forward one day and stays open (F11)', () => {
+    const db = makeDb();
+    const dueAt = new Date(2026, 8, 9, 9, 0).getTime(); // Wed Sep 9, 9:00
+    const original = seed(db, 'water plants', 1000, false, dueAt, 'daily');
+
+    setCompleted(db, original.id, true, 5000);
+
+    const updated = findById(db, original.id);
+    expect(updated?.completed).toBe(false);
+    expect(updated?.dueAt).toBe(new Date(2026, 8, 10, 9, 0).getTime());
+    expect(updated?.updatedAt).toBe(5000);
+  });
+
+  it('completing a monthly recurring task anchored on the 31st clamps into a 30-day month (F11)', () => {
+    const db = makeDb();
+    const dueAt = new Date(2026, 7, 31, 8, 0).getTime(); // Aug 31, 8:00
+    const original = seed(db, 'pay rent', 1000, false, dueAt, 'monthly');
+
+    setCompleted(db, original.id, true, 5000);
+
+    const updated = findById(db, original.id);
+    expect(updated?.dueAt).toBe(new Date(2026, 8, 30, 8, 0).getTime()); // Sep 30
+  });
+
+  it('completing a specific-days recurring task rolls to the next matching weekday, wrapping the week (F11)', () => {
+    const db = makeDb();
+    const friday = new Date(2026, 8, 11, 10, 0).getTime(); // Fri Sep 11
+    const original = seed(db, 'gym', 1000, false, friday, 'specific-days', [1, 3, 5]); // Mon/Wed/Fri
+
+    setCompleted(db, original.id, true, 5000);
+
+    const updated = findById(db, original.id);
+    expect(updated?.dueAt).toBe(new Date(2026, 8, 14, 10, 0).getTime()); // next Mon, Sep 14
+  });
+
+  it('completing a non-recurring task is unaffected by F11 (regression)', () => {
+    const db = makeDb();
+    const dueAt = new Date(2026, 8, 9, 9, 0).getTime();
+    const original = seed(db, 'one-off', 1000, false, dueAt);
+
+    setCompleted(db, original.id, true, 5000);
+
+    const updated = findById(db, original.id);
+    expect(updated?.completed).toBe(true);
+    expect(updated?.dueAt).toBe(dueAt);
+  });
+
+  it('completing a task with recurrence set but no dueAt (invariant violation) completes normally instead of throwing (F11)', () => {
+    const db = makeDb();
+    const original = seed(db, 'malformed', 1000, false, null, 'daily');
+
+    expect(() => setCompleted(db, original.id, true, 5000)).not.toThrow();
+
+    const updated = findById(db, original.id);
+    expect(updated?.completed).toBe(true);
+    expect(updated?.dueAt).toBeNull();
+  });
+
+  it('clearing a schedule also clears recurrence (F11)', () => {
+    const db = makeDb();
+    const dueAt = new Date(2026, 8, 9, 9, 0).getTime();
+    const original = seed(db, 'daily reminder', 1000, false, dueAt, 'daily');
+
+    setSchedule(db, original.id, null, 5000);
+
+    const updated = findById(db, original.id);
+    expect(updated?.dueAt).toBeNull();
+    expect(updated?.recurrence).toBeNull();
+    expect(updated?.recurrenceDays).toBeNull();
+  });
+
+  it('setRecurrence sets, changes, and clears a task’s recurrence independent of dueAt (F11)', () => {
+    const db = makeDb();
+    const dueAt = new Date(2026, 8, 9, 9, 0).getTime();
+    const original = seed(db, 'standup', 1000, false, dueAt);
+
+    setRecurrence(db, original.id, 'weekdays', null, 3000);
+    expect(findById(db, original.id)?.recurrence).toBe('weekdays');
+    expect(findById(db, original.id)?.dueAt).toBe(dueAt);
+
+    setRecurrence(db, original.id, 'specific-days', [2, 4], 4000);
+    expect(findById(db, original.id)?.recurrence).toBe('specific-days');
+    expect(findById(db, original.id)?.recurrenceDays).toBe('2,4');
+
+    setRecurrence(db, original.id, null, null, 5000);
+    expect(findById(db, original.id)?.recurrence).toBeNull();
+    expect(findById(db, original.id)?.dueAt).toBe(dueAt);
   });
 });

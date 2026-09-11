@@ -2,6 +2,7 @@ import { FlatList, StyleSheet, Text, View } from 'react-native';
 
 import type { Task } from '@/db/schema';
 import { useTaskEditing } from '@/hooks/useTaskEditing';
+import type { Recurrence } from '@/lib/recurrence';
 
 import { TaskRow } from './TaskRow';
 
@@ -14,9 +15,11 @@ import { TaskRow } from './TaskRow';
  * empty/whitespace, in which case it reverts. Tapping a task's checkbox
  * toggles `onToggleComplete`; completing a swipe deletes via `onDeleteTask`.
  * Setting, changing, or clearing a task's due date/time (F9) goes through
- * `onScheduleTask`. `emptyMessage` defaults to F8's "All caught up!" (Open
- * mode); Browse mode's Day granularity (F10) passes its own message so an
- * empty browsed day doesn't read as "you're back in Open mode."
+ * `onScheduleTask`; setting, changing, or clearing recurrence (F11) goes
+ * through `onSetRecurrence`. `emptyMessage` defaults to F8's "All caught
+ * up!" (Open mode); Browse mode's Day granularity (F10) passes its own
+ * message so an empty browsed day doesn't read as "you're back in Open
+ * mode."
  */
 interface TaskListProps {
   tasks: Task[];
@@ -24,6 +27,11 @@ interface TaskListProps {
   onToggleComplete: (id: string, completed: boolean) => void;
   onDeleteTask: (id: string) => void;
   onScheduleTask: (id: string, dueAt: number | null) => void;
+  onSetRecurrence: (
+    id: string,
+    recurrence: Recurrence | null,
+    recurrenceDays: number[] | null,
+  ) => void;
   emptyMessage?: string;
 }
 
@@ -33,6 +41,7 @@ export function TaskList({
   onToggleComplete,
   onDeleteTask,
   onScheduleTask,
+  onSetRecurrence,
   emptyMessage = 'All caught up!',
 }: TaskListProps) {
   const editing = useTaskEditing(onEditTask);
@@ -57,6 +66,7 @@ export function TaskList({
           onToggleComplete={onToggleComplete}
           onDeleteTask={onDeleteTask}
           onScheduleTask={onScheduleTask}
+          onSetRecurrence={onSetRecurrence}
         />
       )}
     />

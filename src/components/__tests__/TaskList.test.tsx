@@ -13,6 +13,8 @@ const task = (id: string, text: string, createdAt: number, completed = false): T
   text,
   completed,
   dueAt: null,
+  recurrence: null,
+  recurrenceDays: null,
   createdAt,
   updatedAt: createdAt,
 });
@@ -30,6 +32,7 @@ describe('TaskList', () => {
         onToggleComplete={noop}
         onDeleteTask={noop}
         onScheduleTask={noop}
+        onSetRecurrence={noop}
       />,
     );
 
@@ -45,6 +48,7 @@ describe('TaskList', () => {
         onToggleComplete={noop}
         onDeleteTask={noop}
         onScheduleTask={noop}
+        onSetRecurrence={noop}
         emptyMessage="No tasks today"
       />,
     );
@@ -62,6 +66,7 @@ describe('TaskList', () => {
         onToggleComplete={noop}
         onDeleteTask={noop}
         onScheduleTask={noop}
+        onSetRecurrence={noop}
       />,
     );
 
@@ -78,6 +83,7 @@ describe('TaskList', () => {
         onToggleComplete={noop}
         onDeleteTask={noop}
         onScheduleTask={noop}
+        onSetRecurrence={noop}
       />,
     );
 
@@ -95,6 +101,7 @@ describe('TaskList', () => {
         onToggleComplete={onToggleComplete}
         onDeleteTask={noop}
         onScheduleTask={noop}
+        onSetRecurrence={noop}
       />,
     );
 
@@ -112,6 +119,7 @@ describe('TaskList', () => {
         onToggleComplete={noop}
         onDeleteTask={noop}
         onScheduleTask={noop}
+        onSetRecurrence={noop}
       />,
     );
 
@@ -131,6 +139,7 @@ describe('TaskList', () => {
         onToggleComplete={noop}
         onDeleteTask={noop}
         onScheduleTask={noop}
+        onSetRecurrence={noop}
       />,
     );
 
@@ -152,6 +161,7 @@ describe('TaskList', () => {
         onToggleComplete={noop}
         onDeleteTask={noop}
         onScheduleTask={noop}
+        onSetRecurrence={noop}
       />,
     );
 
@@ -174,6 +184,7 @@ describe('TaskList', () => {
         onToggleComplete={noop}
         onDeleteTask={noop}
         onScheduleTask={noop}
+        onSetRecurrence={noop}
       />,
     );
 
@@ -196,6 +207,7 @@ describe('TaskList', () => {
         onToggleComplete={noop}
         onDeleteTask={noop}
         onScheduleTask={onScheduleTask}
+        onSetRecurrence={noop}
       />,
     );
 

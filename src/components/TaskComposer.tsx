@@ -2,44 +2,66 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { RepeatPicker } from './RepeatPicker';
+import { formatRecurrence } from '@/lib/formatRecurrence';
 import { formatTaskDueAt } from '@/lib/formatTaskDueAt';
 import { normalizeNoteInput } from '@/lib/noteInput';
 import { pickDateTime } from '@/lib/pickDateTime';
+import type { Recurrence } from '@/lib/recurrence';
 
 /**
  * Minimal task-capture control: a multiline text input pinned at the bottom
  * of the Tasks screen with a send affordance. A task is only its text (no
- * title/metadata) plus an optional due date/time (F9) — structurally the
- * same as NoteComposer minus the mic button (F6's voice capture was
- * note-specific, out of scope for F7). Return inserts a newline; the task is
- * committed only by the send button, and only when non-empty after
- * trimming. After a save the field clears (and any pending schedule resets)
- * but keeps focus for rapid capture. Touching nothing on the schedule
- * control creates an unscheduled task, exactly as before F9.
+ * title/metadata) plus an optional due date/time (F9) and an optional
+ * recurrence rule (F11) — structurally the same as NoteComposer minus the
+ * mic button (F6's voice capture was note-specific, out of scope for F7).
+ * Return inserts a newline; the task is committed only by the send button,
+ * and only when non-empty after trimming. After a save the field clears
+ * (and any pending schedule/recurrence resets) but keeps focus for rapid
+ * capture. Touching nothing on the schedule control creates an unscheduled
+ * task, exactly as before F9; the Repeat control only appears once a
+ * schedule is pending, and touching nothing on it creates a non-recurring
+ * task, exactly as before F11.
  */
 interface TaskComposerProps {
-  onSubmit: (text: string, dueAt: number | null) => void;
+  onSubmit: (
+    text: string,
+    dueAt: number | null,
+    recurrence: Recurrence | null,
+    recurrenceDays: number[] | null,
+  ) => void;
 }
 
 export function TaskComposer({ onSubmit }: TaskComposerProps) {
   const insets = useSafeAreaInsets();
   const [value, setValue] = useState('');
   const [pendingDueAt, setPendingDueAt] = useState<number | null>(null);
+  const [pendingRecurrence, setPendingRecurrence] = useState<Recurrence | null>(null);
+  const [pendingRecurrenceDays, setPendingRecurrenceDays] = useState<number[] | null>(null);
+  const [repeatPickerVisible, setRepeatPickerVisible] = useState(false);
 
   const trimmed = normalizeNoteInput(value);
   const canSubmit = trimmed !== null;
 
   const handleSend = () => {
     if (trimmed === null) return;
-    onSubmit(trimmed, pendingDueAt);
+    onSubmit(trimmed, pendingDueAt, pendingRecurrence, pendingRecurrenceDays);
     setValue('');
     setPendingDueAt(null);
+    setPendingRecurrence(null);
+    setPendingRecurrenceDays(null);
   };
 
   const handleOpenPicker = async () => {
     const initial = pendingDueAt ? new Date(pendingDueAt) : new Date();
     const picked = await pickDateTime(initial);
     if (picked) setPendingDueAt(picked.getTime());
+  };
+
+  const handleClearSchedule = () => {
+    setPendingDueAt(null);
+    setPendingRecurrence(null);
+    setPendingRecurrenceDays(null);
   };
 
   return (
@@ -50,16 +72,38 @@ export function TaskComposer({ onSubmit }: TaskComposerProps) {
             <Text style={styles.dueAtText}>{formatTaskDueAt(pendingDueAt)}</Text>
           </Pressable>
           <Pressable
+            testID="task-composer-repeat"
+            accessibilityRole="button"
+            accessibilityLabel="Repeat"
+            onPress={() => setRepeatPickerVisible(true)}
+            hitSlop={8}
+          >
+            <Text style={styles.repeatText}>
+              {formatRecurrence(pendingRecurrence, pendingRecurrenceDays) ?? 'Repeat'}
+            </Text>
+          </Pressable>
+          <Pressable
             testID="task-composer-clear-schedule"
             accessibilityRole="button"
             accessibilityLabel="Clear schedule"
-            onPress={() => setPendingDueAt(null)}
+            onPress={handleClearSchedule}
             hitSlop={8}
           >
             <Text style={styles.clearScheduleGlyph}>×</Text>
           </Pressable>
         </View>
       )}
+      <RepeatPicker
+        visible={repeatPickerVisible}
+        recurrence={pendingRecurrence}
+        recurrenceDays={pendingRecurrenceDays}
+        onConfirm={(recurrence, recurrenceDays) => {
+          setPendingRecurrence(recurrence);
+          setPendingRecurrenceDays(recurrenceDays);
+          setRepeatPickerVisible(false);
+        }}
+        onCancel={() => setRepeatPickerVisible(false)}
+      />
       <View style={styles.inputRow}>
         <Pressable
           testID="task-composer-add-schedule"
@@ -124,6 +168,10 @@ const styles = StyleSheet.create({
   dueAtText: {
     fontSize: 13,
     color: '#208AEF',
+  },
+  repeatText: {
+    fontSize: 13,
+    color: '#8a8a8e',
   },
   clearScheduleGlyph: {
     fontSize: 16,
