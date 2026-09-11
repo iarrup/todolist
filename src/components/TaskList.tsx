@@ -14,7 +14,9 @@ import { TaskRow } from './TaskRow';
  * empty/whitespace, in which case it reverts. Tapping a task's checkbox
  * toggles `onToggleComplete`; completing a swipe deletes via `onDeleteTask`.
  * Setting, changing, or clearing a task's due date/time (F9) goes through
- * `onScheduleTask`.
+ * `onScheduleTask`. `emptyMessage` defaults to F8's "All caught up!" (Open
+ * mode); Browse mode's Day granularity (F10) passes its own message so an
+ * empty browsed day doesn't read as "you're back in Open mode."
  */
 interface TaskListProps {
   tasks: Task[];
@@ -22,6 +24,7 @@ interface TaskListProps {
   onToggleComplete: (id: string, completed: boolean) => void;
   onDeleteTask: (id: string) => void;
   onScheduleTask: (id: string, dueAt: number | null) => void;
+  emptyMessage?: string;
 }
 
 export function TaskList({
@@ -30,13 +33,14 @@ export function TaskList({
   onToggleComplete,
   onDeleteTask,
   onScheduleTask,
+  emptyMessage = 'All caught up!',
 }: TaskListProps) {
   const editing = useTaskEditing(onEditTask);
 
   if (tasks.length === 0) {
     return (
       <View style={styles.emptyState}>
-        <Text style={styles.emptyText}>All caught up!</Text>
+        <Text style={styles.emptyText}>{emptyMessage}</Text>
       </View>
     );
   }
