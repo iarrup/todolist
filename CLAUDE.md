@@ -61,8 +61,16 @@ deletes it. **F8 (task list view)** is built: the Tasks tab now shows only
 open (incomplete) tasks by default — completing a task removes it from the
 list immediately, with no toggle or archive to reveal completed tasks again
 from this screen — and the empty state reads "All caught up!" instead of
-F7's generic placeholder. No scheduling, recurrence, or reminders yet
-(F9/F11/F12). See `PROGRESS.md` for pipeline state.
+F7's generic placeholder. **F9 (task scheduling)** is built: a task can now
+carry an optional due date/time (nullable `dueAt` on `tasks`) set from
+either `TaskComposer` (at creation) or `TaskRow` (on an existing task),
+both sharing one native Android date-then-time dialog flow
+(`src/lib/pickDateTime.ts`, via the new `@react-native-community/datetimepicker`
+dependency); a scheduled task shows its due date/time on the row (tap to
+change it) plus a clear affordance to unschedule it; cancelling either
+dialog leaves the existing schedule untouched. No recurrence or reminders
+yet (F11/F12), and no day/week/month/year task views yet (F10). See
+`PROGRESS.md` for pipeline state.
 
 **Tech stack (decided 2026-07-29, libs confirmed at F1):** React Native + Expo,
 Expo Router (navigation), `expo-sqlite` + `drizzle-orm`/`drizzle-kit`

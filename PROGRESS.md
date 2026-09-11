@@ -30,7 +30,7 @@ React Native + Expo (TypeScript).** See decision log.
 |---|---|---|---|---|
 | F7 | Task management | Add/edit/delete/complete a task — minimal, text-only, no title | F1 | Done |
 | F8 | Task list view | Default view: all open (incomplete) tasks | F7 | Done |
-| F9 | Task scheduling | Add a date & time to a task | F7 | Backlog |
+| F9 | Task scheduling | Add a date & time to a task | F7 | Done |
 | F10 | Task time-based views | Browse tasks by day / week / month / year | F9 | Backlog |
 | F11 | Task recurrence | Daily, weekdays, weekends, specific weekdays, monthly, annually | F9 | Backlog |
 | F12 | Reminders & snooze | Push notification at due time (incl. recurring instances) + snooze overdue tasks | F9, F11 | Backlog |
@@ -44,6 +44,61 @@ Not yet planned (`plan-phase`). Open questions: accounts/auth, conflict handling
 
 ## Decision log
 
+- **2026-09-10** — **F9 (Task scheduling): implementation gate passed
+  (review-and-gate) → F9 is Done.** All 13 spec DoD items verified against
+  the diff (matches `.claude/plans/2/f9-task-scheduling.plan.md` exactly —
+  only the planned files touched, no scope creep): `dueAt` added to `tasks`
+  (additive migration `drizzle/0002_oval_doorman.sql`); new
+  `src/lib/pickDateTime.ts` (shared imperative date→time dialog flow) and
+  `src/lib/formatTaskDueAt.ts`; `db/tasks.ts`'s `insertTask` gained a
+  backward-compatible optional `dueAt` param, plus new
+  `updateTaskSchedule`; `TaskComposer`/`TaskRow`/`TaskList`/`tasks.tsx` wired
+  for set/change/clear at both entry points. `npm test` (112/112, 20
+  suites), `tsc`, `expo lint`, `prettier --check .` all clean (only the
+  pre-existing, unrelated `todolist.code-workspace` warning). Grep check
+  confirmed no recurrence/notification/network/auth code introduced.
+  **On-device (Pixel_10_Pro emulator):** native Android date and time
+  dialogs both confirmed working; schedule set/change/clear verified at
+  both the composer (pending-schedule pill) and row (due-at subtitle)
+  entry points; the date dialog reopens correctly pre-seeded with a task's
+  existing due date/time; cancelling a dialog leaves the prior schedule (or
+  lack of one) untouched; long-press-edit and checkbox-complete (F7/F8)
+  verified unaffected by a task's schedule; a scheduled task's `dueAt`
+  survived a full force-stop + relaunch. No crashes or JS errors in logcat
+  throughout. One disclosed, non-blocking finding: the already-documented
+  `adb`-synthetic-tap-vs-gesture-recognizer quirk (from the F7 session)
+  recurred on two `Pressable`s inside the `Swipeable`-wrapped `TaskRow`
+  during manual on-device driving — confirmed a testing-tool artifact via
+  Jest's reliably-passing `fireEvent.press`, not an app defect; resolved by
+  retrying the tap. No changes requested. Approved by: user
+  (arup.chowdhary@gmail.com).
+- **2026-09-10** — **F9 (Task scheduling): technical plan approved
+  (review-and-gate).** Plan: `.claude/plans/2/f9-task-scheduling.plan.md` —
+  adds a nullable `due_at` column to `tasks`; new
+  `src/lib/pickDateTime.ts` (shared imperative
+  `DateTimePickerAndroid.open` date→time flow used by both entry points) and
+  `src/lib/formatTaskDueAt.ts`; `db/tasks.ts` gains an optional `dueAt` param
+  on `insertTask` plus a new `updateTaskSchedule`; `TaskComposer`/`TaskRow`/
+  `TaskList`/`tasks.tsx` wired for set/change/clear at both entry points. New
+  dependency `@react-native-community/datetimepicker` via `npx expo install`
+  (native rebuild required, same pattern as F6). No changes to
+  `useTaskEditing`/delete/complete code. Approved by: user
+  (arup.chowdhary@gmail.com). **Awaiting `implement-feature`.**
+- **2026-09-10** — **F9 (Task scheduling): spec written and gate passed
+  (elicited via `AskUserQuestion` before drafting).** Decisions confirmed
+  with the user: a schedule can be set **both at creation (in
+  `TaskComposer`) and afterward (on an existing task via `TaskRow`)**, using
+  one shared native picker flow (**`@react-native-community/datetimepicker`**,
+  a new dependency — chosen over a custom-built picker, mirroring the F6
+  precedent of adding one focused native dependency when it earns its
+  place); **date and time are both required together** (no date-only
+  schedule state); and a schedule is **clearable** back to unscheduled once
+  set. New nullable `due_at` column on `tasks` (epoch ms, `null` = unscheduled,
+  additive migration). No day/week/month/year views, no recurrence, no
+  reminders/snooze — those remain F10/F11/F12. Spec:
+  `.claude/specs/2-f9-task-scheduling.md`. Built on branch
+  `feature/task-scheduling`. Approved by: user (arup.chowdhary@gmail.com).
+  **Awaiting `write-technical-plan`.**
 - **2026-09-10** — **F8 (Task list view): implementation gate passed
   (review-and-gate) → F8 is Done.** All 9 spec DoD items verified against
   the diff (matches `.claude/plans/2/f8-tasklist-view.plan.md` exactly — only
@@ -660,10 +715,13 @@ Not yet planned (`plan-phase`). Open questions: accounts/auth, conflict handling
     notifications (Phase 2) `expo-notifications`.
   - Approved by: user (arup.chowdhary@gmail.com).
 
-- **Now:** **F8 (Task list view) is Done**, on branch `feature/tasklist-view`
-  (not yet merged to `master`).
-- **Next:** Commit and open a PR for `feature/tasklist-view`, merge, then
-  move to **F9 (Task scheduling)** — spec it via `write-feature-spec`.
+- **Now:** **F9 (Task scheduling) is Done**, on branch
+  `feature/task-scheduling` (not yet merged to `master`). `feature/tasklist-view`
+  (F8) also still needs a PR opened/merged to `master` — outstanding from the
+  prior session.
+- **Next:** Commit and open PRs for `feature/tasklist-view` (F8) and
+  `feature/task-scheduling` (F9), merge, then move to **F10 (Task
+  time-based views)** — spec it via `write-feature-spec`.
 - **Workflow:** Each feature is built on its **own branch in a separate Claude
   Code session**; planning/decisions are tracked here on
   `feature/create-features`.

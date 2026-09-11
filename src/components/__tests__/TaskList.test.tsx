@@ -5,10 +5,14 @@ import type { Task } from '@/db/schema';
 
 import { TaskList } from '../TaskList';
 
+// jest.mock calls are hoisted above imports by babel-plugin-jest-hoist.
+jest.mock('@/lib/pickDateTime', () => ({ pickDateTime: jest.fn() }));
+
 const task = (id: string, text: string, createdAt: number, completed = false): Task => ({
   id,
   text,
   completed,
+  dueAt: null,
   createdAt,
   updatedAt: createdAt,
 });
@@ -20,7 +24,13 @@ const noop = () => {
 describe('TaskList', () => {
   it('shows the empty state when there are no tasks', () => {
     const { getByText, queryAllByTestId } = render(
-      <TaskList tasks={[]} onEditTask={noop} onToggleComplete={noop} onDeleteTask={noop} />,
+      <TaskList
+        tasks={[]}
+        onEditTask={noop}
+        onToggleComplete={noop}
+        onDeleteTask={noop}
+        onScheduleTask={noop}
+      />,
     );
 
     expect(getByText('All caught up!')).toBeTruthy();
@@ -30,7 +40,13 @@ describe('TaskList', () => {
   it('renders tasks in the order given, without re-sorting', () => {
     const tasks = [task('1', 'oldest', 1), task('2', 'newest', 3), task('3', 'middle', 2)];
     const { getAllByTestId } = render(
-      <TaskList tasks={tasks} onEditTask={noop} onToggleComplete={noop} onDeleteTask={noop} />,
+      <TaskList
+        tasks={tasks}
+        onEditTask={noop}
+        onToggleComplete={noop}
+        onDeleteTask={noop}
+        onScheduleTask={noop}
+      />,
     );
 
     const texts = getAllByTestId('task-text').map((el) => el.props.children);
@@ -40,7 +56,13 @@ describe('TaskList', () => {
   it('renders whatever tasks it is given, without filtering by completed state', () => {
     const tasks = [task('1', 'open one', 2, false), task('2', 'done one', 1, true)];
     const { getByText } = render(
-      <TaskList tasks={tasks} onEditTask={noop} onToggleComplete={noop} onDeleteTask={noop} />,
+      <TaskList
+        tasks={tasks}
+        onEditTask={noop}
+        onToggleComplete={noop}
+        onDeleteTask={noop}
+        onScheduleTask={noop}
+      />,
     );
 
     expect(getByText('open one')).toBeTruthy();
@@ -56,6 +78,7 @@ describe('TaskList', () => {
         onEditTask={noop}
         onToggleComplete={onToggleComplete}
         onDeleteTask={noop}
+        onScheduleTask={noop}
       />,
     );
 
@@ -67,7 +90,13 @@ describe('TaskList', () => {
   it('enters edit mode on long-press, pre-filled with the task’s text', () => {
     const tasks = [task('1', 'hello', 1)];
     const { getByTestId, queryByTestId } = render(
-      <TaskList tasks={tasks} onEditTask={noop} onToggleComplete={noop} onDeleteTask={noop} />,
+      <TaskList
+        tasks={tasks}
+        onEditTask={noop}
+        onToggleComplete={noop}
+        onDeleteTask={noop}
+        onScheduleTask={noop}
+      />,
     );
 
     fireEvent(getByTestId('task-text-pressable-1'), 'longPress');
@@ -85,6 +114,7 @@ describe('TaskList', () => {
         onEditTask={onEditTask}
         onToggleComplete={noop}
         onDeleteTask={noop}
+        onScheduleTask={noop}
       />,
     );
 
@@ -105,6 +135,7 @@ describe('TaskList', () => {
         onEditTask={onEditTask}
         onToggleComplete={noop}
         onDeleteTask={noop}
+        onScheduleTask={noop}
       />,
     );
 
@@ -126,6 +157,7 @@ describe('TaskList', () => {
         onEditTask={onEditTask}
         onToggleComplete={noop}
         onDeleteTask={noop}
+        onScheduleTask={noop}
       />,
     );
 
@@ -135,5 +167,24 @@ describe('TaskList', () => {
 
     expect(onEditTask).toHaveBeenCalledWith('1', 'edited first');
     expect(getByTestId('task-edit-input').props.value).toBe('second');
+  });
+
+  it('tapping clear-schedule on a scheduled task calls onScheduleTask with that task’s id and null', () => {
+    const onScheduleTask = jest.fn();
+    const dueAt = new Date(2026, 8, 20, 15, 30).getTime();
+    const tasks = [{ ...task('1', 'buy milk', 1), dueAt }];
+    const { getByTestId } = render(
+      <TaskList
+        tasks={tasks}
+        onEditTask={noop}
+        onToggleComplete={noop}
+        onDeleteTask={noop}
+        onScheduleTask={onScheduleTask}
+      />,
+    );
+
+    fireEvent.press(getByTestId('task-clear-schedule'));
+
+    expect(onScheduleTask).toHaveBeenCalledWith('1', null);
   });
 });

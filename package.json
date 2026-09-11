@@ -16,6 +16,7 @@
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
+    "@react-native-community/datetimepicker": "9.1.0",
     "drizzle-orm": "^0.45.2",
     "expo": "~57.0.9",
     "expo-constants": "~57.0.8",

@@ -13,15 +13,24 @@ import { TaskRow } from './TaskRow';
  * edit is committed via `onEditTask` on blur, unless cleared to
  * empty/whitespace, in which case it reverts. Tapping a task's checkbox
  * toggles `onToggleComplete`; completing a swipe deletes via `onDeleteTask`.
+ * Setting, changing, or clearing a task's due date/time (F9) goes through
+ * `onScheduleTask`.
  */
 interface TaskListProps {
   tasks: Task[];
   onEditTask: (id: string, text: string) => void;
   onToggleComplete: (id: string, completed: boolean) => void;
   onDeleteTask: (id: string) => void;
+  onScheduleTask: (id: string, dueAt: number | null) => void;
 }
 
-export function TaskList({ tasks, onEditTask, onToggleComplete, onDeleteTask }: TaskListProps) {
+export function TaskList({
+  tasks,
+  onEditTask,
+  onToggleComplete,
+  onDeleteTask,
+  onScheduleTask,
+}: TaskListProps) {
   const editing = useTaskEditing(onEditTask);
 
   if (tasks.length === 0) {
@@ -43,6 +52,7 @@ export function TaskList({ tasks, onEditTask, onToggleComplete, onDeleteTask }: 
           editing={editing}
           onToggleComplete={onToggleComplete}
           onDeleteTask={onDeleteTask}
+          onScheduleTask={onScheduleTask}
         />
       )}
     />

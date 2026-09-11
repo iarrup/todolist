@@ -40,7 +40,8 @@
           "speechRecognitionPermission": "Allow $(PRODUCT_NAME) to use speech recognition.",
           "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true
