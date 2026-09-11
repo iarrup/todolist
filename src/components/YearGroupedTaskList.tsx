@@ -4,6 +4,7 @@ import type { Task } from '@/db/schema';
 import { useTaskEditing } from '@/hooks/useTaskEditing';
 import { formatDayHeading } from '@/lib/formatDay';
 import { groupTasksByMonthAndDay, type TaskMonthGroup } from '@/lib/groupTasksByMonthAndDay';
+import type { Recurrence } from '@/lib/recurrence';
 
 import { TaskRow } from './TaskRow';
 
@@ -27,6 +28,11 @@ interface YearGroupedTaskListProps {
   onToggleComplete: (id: string, completed: boolean) => void;
   onDeleteTask: (id: string) => void;
   onScheduleTask: (id: string, dueAt: number | null) => void;
+  onSetRecurrence: (
+    id: string,
+    recurrence: Recurrence | null,
+    recurrenceDays: number[] | null,
+  ) => void;
 }
 
 export function YearGroupedTaskList({
@@ -35,6 +41,7 @@ export function YearGroupedTaskList({
   onToggleComplete,
   onDeleteTask,
   onScheduleTask,
+  onSetRecurrence,
 }: YearGroupedTaskListProps) {
   const editing = useTaskEditing(onEditTask);
 
@@ -75,6 +82,7 @@ export function YearGroupedTaskList({
               onToggleComplete={onToggleComplete}
               onDeleteTask={onDeleteTask}
               onScheduleTask={onScheduleTask}
+              onSetRecurrence={onSetRecurrence}
             />
           ))}
         </View>

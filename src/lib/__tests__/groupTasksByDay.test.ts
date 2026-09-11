@@ -6,7 +6,16 @@ import type { Task } from '@/db/schema';
 import { groupTasksByDay } from '../groupTasksByDay';
 
 function task(id: string, dueAt: number, completed = false): Task {
-  return { id, text: id, completed, dueAt, createdAt: dueAt, updatedAt: dueAt };
+  return {
+    id,
+    text: id,
+    completed,
+    dueAt,
+    recurrence: null,
+    recurrenceDays: null,
+    createdAt: dueAt,
+    updatedAt: dueAt,
+  };
 }
 
 describe('groupTasksByDay', () => {

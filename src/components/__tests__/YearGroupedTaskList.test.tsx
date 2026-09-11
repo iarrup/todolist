@@ -13,6 +13,8 @@ const task = (id: string, text: string, dueAt: number, completed = false): Task 
   text,
   completed,
   dueAt,
+  recurrence: null,
+  recurrenceDays: null,
   createdAt: dueAt,
   updatedAt: dueAt,
 });
@@ -34,6 +36,7 @@ describe('YearGroupedTaskList', () => {
         onToggleComplete={noop}
         onDeleteTask={noop}
         onScheduleTask={noop}
+        onSetRecurrence={noop}
       />,
     );
 
@@ -54,6 +57,7 @@ describe('YearGroupedTaskList', () => {
         onToggleComplete={noop}
         onDeleteTask={noop}
         onScheduleTask={noop}
+        onSetRecurrence={noop}
       />,
     );
 
@@ -74,6 +78,7 @@ describe('YearGroupedTaskList', () => {
         onToggleComplete={noop}
         onDeleteTask={noop}
         onScheduleTask={noop}
+        onSetRecurrence={noop}
       />,
     );
 
@@ -91,6 +96,7 @@ describe('YearGroupedTaskList', () => {
         onToggleComplete={onToggleComplete}
         onDeleteTask={noop}
         onScheduleTask={noop}
+        onSetRecurrence={noop}
       />,
     );
 

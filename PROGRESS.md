@@ -32,7 +32,7 @@ React Native + Expo (TypeScript).** See decision log.
 | F8 | Task list view | Default view: all open (incomplete) tasks | F7 | Done |
 | F9 | Task scheduling | Add a date & time to a task | F7 | Done |
 | F10 | Task time-based views | Browse tasks by day / week / month / year | F9 | Done |
-| F11 | Task recurrence | Daily, weekdays, weekends, specific weekdays, monthly, annually | F9 | Backlog |
+| F11 | Task recurrence | Daily, weekdays, weekends, specific weekdays, monthly, annually | F9 | Done |
 | F12 | Reminders & snooze | Push notification at due time (incl. recurring instances) + snooze overdue tasks | F9, F11 | Backlog |
 
 **Cut lines (out of scope for Phase 2):** web surface, sync backend,
@@ -44,6 +44,148 @@ Not yet planned (`plan-phase`). Open questions: accounts/auth, conflict handling
 
 ## Decision log
 
+- **2026-09-10** — **F11 (Task recurrence): implementation gate passed
+  (review-and-gate) → F11 is Done.** A close code-level pass (not just the
+  DoD checklist) specifically hunted for `recurrence`/`recurrenceDays`
+  state-consistency bugs across every write path (`TaskComposer`'s
+  `handleClearSchedule`, `RepeatPicker.onConfirm`, the DB-layer
+  clear-on-unschedule rule) and DST/clamping edge cases — none found. Diff
+  matches `.claude/plans/2/f11-task-recurrance.plan.md`'s file list exactly,
+  including the two disclosed additions (`onSetRecurrence` threaded through
+  `TaskList`/`GroupedTaskList`/`YearGroupedTaskList`, and the new
+  `recurrence.ts`). All 20 spec DoD items verified via a combination of
+  on-device driving (create-recurring-at-composer, add-recurrence via
+  `TaskRow`'s second entry point, daily roll-forward on completion while
+  staying in Open, single-row correctness in Browse/Month, delete-removes-
+  the-series, persistence across force-stop + relaunch, cancel-leaves-state-
+  untouched via Android back, reseed-on-reopen, specific-days empty-
+  selection Confirm-disabled block) and the automated suite (specific-days
+  weekday-toggle interaction itself and month-end/Feb-29 clamping — 8
+  `RepeatPicker` + 12 `nextOccurrence` tests). `npm test` (203/203, 33
+  suites), `tsc`, `expo lint`, `prettier --check .` all clean; no new
+  dependencies; no crashes/fatal JS errors in logcat; Notes tab regression-
+  checked unaffected. No changes requested. Approved by: user
+  (arup.chowdhary@gmail.com).
+- **2026-09-10** — **F11 (Task recurrence): implemented** on
+  `feature/task-recurrance` per `.claude/plans/2/f11-task-recurrance.plan.md`,
+  step by step, no deviations from the plan.
+  - **New:** `src/lib/recurrence.ts` (`Recurrence` type, `RECURRENCE_TYPES`
+    tuple, labels, `parseRecurrenceDays`/`serializeRecurrenceDays`),
+    `src/lib/nextOccurrence.ts` (pure six-type rollover with month/year
+    clamping mirroring `stepDate.ts`), `src/lib/formatRecurrence.ts`,
+    `src/components/RepeatPicker.tsx` (a plain `Modal`, no new dependency).
+    Migration `drizzle/0003_majestic_war_machine.sql` adds nullable
+    `recurrence`/`recurrence_days` to `tasks`. `insertTask` gained optional
+    `recurrence`/`recurrenceDays` params; `setTaskCompleted` is now
+    recurrence-aware (guarded on both `recurrence` and `dueAt` being
+    non-null, per the plan's `review-and-gate` fix — falls through to plain
+    completion otherwise); `updateTaskSchedule` clears recurrence when
+    `dueAt` clears; new `updateTaskRecurrence`. `TaskComposer`/`TaskRow`
+    both wired with a Repeat control (only shown once scheduled) opening
+    the shared `RepeatPicker`. `onSetRecurrence` threaded through
+    `TaskList`/`GroupedTaskList`/`YearGroupedTaskList` — the plumbing gap
+    the plan flagged as necessary but outside the spec's literal file list,
+    mirroring F9/F10's precedent for `onScheduleTask`.
+  - **Headless:** `npm test` (203/203, 33 suites — new suites for
+    `recurrence`, `nextOccurrence`, `formatRecurrence`, `RepeatPicker`, plus
+    additions to `tasks.test.ts`/`TaskComposer.test.tsx`), `tsc`,
+    `expo lint`, `prettier --check .` all clean (only the pre-existing,
+    unrelated `todolist.code-workspace` warning). Grep check confirmed no
+    materialized-instance rows, no per-occurrence history/skip action, no
+    end-date/occurrence-count field, no notification/snooze code, no
+    network/backend/auth/sync code. `package.json`/`package-lock.json`
+    unchanged (no new dependencies).
+  - **On-device (Pixel_10_Pro emulator, JS-only — no rebuild needed since
+    F11 adds no native dependencies):** the migration applied cleanly on
+    launch (no crash) both fresh and after a full force-stop + relaunch.
+    Verified end-to-end through the real on-device SQLite DB: creating a
+    daily-recurring task at the composer (`Sep 20, 7:57 PM · Repeats
+    daily`); completing it rolled `dueAt` to `Sep 21, 7:57 PM`, stayed
+    unchecked, and **stayed in Open** instead of disappearing; Browse/Month
+    showed it exactly once, correctly grouped under Sep 21 (no duplicate
+    rows); it survived a force-stop + relaunch; swipe-delete removed the
+    whole series (`Browse` and `Open` both went empty). Separately verified
+    adding recurrence to an *already-scheduled* task via `TaskRow` (the
+    second entry point) — set to "Repeats on weekends" — and confirmed
+    clearing that task's schedule also cleared its recurrence display.
+    `RepeatPicker` confirmed rendering correctly from both entry points;
+    "Specific days of the week" reveals the weekday chip row and blocks
+    Confirm (`enabled="false"` via `uiautomator`) until a day is checked,
+    and a tap on the disabled button is a no-op; cancelling (via Android
+    back, triggering `onRequestClose`) left the prior recurrence state
+    untouched, and reopening correctly reseeded the draft from the task's
+    real state rather than the discarded draft. The specific-days weekday
+    multi-select's own tap-to-toggle and month/Feb-29 clamping were not
+    independently re-driven on-device (relied on the 8 passing
+    `RepeatPicker` component tests and 12 `nextOccurrence` unit tests
+    instead) — a disclosed, precedent-consistent gap (matches F6's DoD
+    3/12 disclosure pattern). No crashes or fatal JS errors in logcat from
+    the running build throughout; Notes tab regression-checked unaffected.
+    One dev-tooling red herring diagnosed and worked around, not an app
+    defect: Expo's LogBox "Open debugger to view warnings" banner (for a
+    pre-existing, F9-era `DateTimePicker: onChange is deprecated` warning,
+    unrelated to F11) has a touch-capturing container far larger than its
+    visible text, silently swallowing taps on the composer's Send button
+    and the RepeatPicker's Confirm/Cancel row underneath it — fixed for
+    the rest of the session by tapping its real dismiss icon (found via
+    `uiautomator`'s node tree, not its visible bounds). Test data cleaned
+    up from the device afterward.
+  - **Ready for implementation `review-and-gate`.**
+- **2026-09-10** — **F11 (Task recurrence): technical plan approved
+  (review-and-gate).** Plan: `.claude/plans/2/f11-task-recurrance.plan.md` —
+  additive migration adding nullable `recurrence` (Drizzle `text` enum
+  column) and `recurrence_days` (comma-separated text) to `tasks`; new pure
+  `src/lib/recurrence.ts` (types/labels/parse-serialize), `nextOccurrence.ts`
+  (six-type rollover, mirrors `stepDate.ts`'s clamp pattern rather than
+  importing it — same parallel-not-modify precedent as F10), and
+  `formatRecurrence.ts`; new hand-built `RepeatPicker.tsx` (a `Modal`, no new
+  dependency — there's no native OS dialog to wrap for recurrence, unlike
+  F9's date/time picker); `setTaskCompleted` becomes recurrence-aware only
+  when completing, and only when both `recurrence` and `dueAt` are non-null
+  (falls through to plain completion otherwise — a guard added during this
+  plan's own `review-and-gate`, since the "recurrence requires a schedule"
+  invariant is UI-enforced only, not checked by `insertTask`'s signature);
+  `updateTaskSchedule` now also clears recurrence when a schedule is
+  cleared; new `updateTaskRecurrence`. Two things flagged as necessary but
+  outside the spec's literal file list: prop-threading `onSetRecurrence`
+  through `TaskList`/`GroupedTaskList`/`YearGroupedTaskList` (pure plumbing,
+  same gap F9/F10 already closed for `onScheduleTask`), and `recurrence.ts`
+  itself (mirrors `taskGranularity.ts`'s precedent). 15 ordered
+  implementation steps with a DoD-to-verification traceability table
+  covering all 20 spec acceptance criteria. No new dependencies. One gap
+  found and fixed before approval (the `setTaskCompleted` guard above).
+  Approved by: user (arup.chowdhary@gmail.com). **Awaiting
+  `implement-feature`.**
+- **2026-09-10** — **F11 (Task recurrence): spec written and gate passed
+  (elicited via `AskUserQuestion` before drafting, plus a `review-and-gate`
+  pass that surfaced and resolved four gaps before approval).** Decisions
+  confirmed with the user: recurrence uses a **single-row, roll-forward
+  model** — a recurring task is one row whose `dueAt` advances on completion
+  (never spawns materialized instance rows), trading away a browsable history
+  of past occurrences to keep F9's `dueAt`-per-task model and F10's
+  Browse-by-range queries completely untouched; monthly/annual recurrence on
+  a day that doesn't exist in the target period **clamps to the last valid
+  day** (mirrors `stepDate.ts`'s existing precedent) rather than skipping;
+  recurrence has **no end condition** — repeats forever until manually set
+  back to "None"; recurrence is set via the **same two entry points as F9**
+  (`TaskComposer` at creation, `TaskRow` on an existing task), one shared
+  Repeat selector. New nullable `recurrence`/`recurrenceDays` columns on
+  `tasks` (additive migration); new `src/lib/nextOccurrence.ts` (pure,
+  per-type next-date computation) and `src/lib/formatRecurrence.ts`. Four
+  gaps found during `review-and-gate` and fixed before approval: (1)
+  cancelling the Repeat selector wasn't specified to leave state untouched
+  (mirrors F9's cancel rule); (2) nothing blocked confirming "specific days"
+  with zero days selected; (3) it wasn't stated that a recurring task stays
+  visible in Open (F8) after every completion, since Open is unfiltered by
+  date — only its due subtitle changes; (4) the next-occurrence search for
+  weekdays/weekends/specific-days wasn't specified to start strictly after
+  the current due day (same-day selected weekday must roll to next week, not
+  repeat today). DoD grew from 16 to 20 items to cover all four. No
+  reminders/notifications (F12), no calendar-grid or date-picker-for-
+  navigation changes, no change to F10's Browse components. Spec:
+  `.claude/specs/2-f11-task-recurrance.md`. Built on branch
+  `feature/task-recurrance`. Approved by: user (arup.chowdhary@gmail.com).
+  **Awaiting `write-technical-plan`.**
 - **2026-09-10** — **F10 (Task time-based views): implementation gate
   passed (review-and-gate) → F10 is Done.** All 17 spec DoD items verified
   against the diff and on-device (Pixel_10_Pro emulator): Open mode
@@ -840,16 +982,11 @@ Not yet planned (`plan-phase`). Open questions: accounts/auth, conflict handling
     notifications (Phase 2) `expo-notifications`.
   - Approved by: user (arup.chowdhary@gmail.com).
 
-- **Now:** **F10 (Task time-based views) is Done**, on branch
-  `feature/task-timebased-views` (not yet committed/merged). Phase 2's
-  scheduling/browsing arc (F7–F10) is now fully built; only F11 (recurrence)
-  and F12 (reminders & snooze) remain in Backlog. `feature/tasklist-view`
-  (F8) and `feature/task-scheduling` (F9) still need PRs opened/merged to
-  `master` — outstanding from prior sessions.
-- **Next:** Commit F10's changes and open a PR to `master`. Separately,
-  still owed: commit and open PRs for `feature/tasklist-view` (F8) and
-  `feature/task-scheduling` (F9), merge to `master`. After that, decompose
-  F11 (Task recurrence) via `write-feature-spec`.
+- **Now:** F7–F11 are Done. F7–F10 are merged to `master` (F10's PR #14
+  merged 2026-09-10). **F11 (Task recurrence) is Done** but not yet
+  committed/merged — still on branch `feature/task-recurrance`. F12
+  (reminders & snooze) remains in Backlog, the last Phase 2 feature.
+- **Next:** Commit F11's changes and open a PR to `master`.
 - **Workflow:** Each feature is built on its **own branch in a separate Claude
   Code session**; planning/decisions are tracked here on
   `feature/create-features`.

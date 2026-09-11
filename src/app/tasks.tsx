@@ -14,9 +14,11 @@ import {
   openTasksQuery,
   scheduledTasksForGranularityQuery,
   setTaskCompleted,
+  updateTaskRecurrence,
   updateTaskSchedule,
   updateTaskText,
 } from '@/db/tasks';
+import type { Recurrence } from '@/lib/recurrence';
 import type { TaskGranularity } from '@/lib/taskGranularity';
 import { stepTaskDate } from '@/lib/stepTaskDate';
 
@@ -90,6 +92,13 @@ export default function TasksScreen() {
   const onScheduleTask = (id: string, dueAt: number | null) => {
     void updateTaskSchedule(id, dueAt);
   };
+  const onSetRecurrence = (
+    id: string,
+    recurrence: Recurrence | null,
+    recurrenceDays: number[] | null,
+  ) => {
+    void updateTaskRecurrence(id, recurrence, recurrenceDays);
+  };
 
   return (
     <KeyboardAvoidingView
@@ -108,6 +117,7 @@ export default function TasksScreen() {
           onToggleComplete={onToggleComplete}
           onDeleteTask={onDeleteTask}
           onScheduleTask={onScheduleTask}
+          onSetRecurrence={onSetRecurrence}
         />
       ) : (
         <View style={styles.listArea}>
@@ -127,6 +137,7 @@ export default function TasksScreen() {
               onToggleComplete={onToggleComplete}
               onDeleteTask={onDeleteTask}
               onScheduleTask={onScheduleTask}
+              onSetRecurrence={onSetRecurrence}
               emptyMessage={BROWSE_EMPTY_MESSAGE.day}
             />
           ) : granularity === 'year' ? (
@@ -136,6 +147,7 @@ export default function TasksScreen() {
               onToggleComplete={onToggleComplete}
               onDeleteTask={onDeleteTask}
               onScheduleTask={onScheduleTask}
+              onSetRecurrence={onSetRecurrence}
             />
           ) : (
             <GroupedTaskList
@@ -144,6 +156,7 @@ export default function TasksScreen() {
               onToggleComplete={onToggleComplete}
               onDeleteTask={onDeleteTask}
               onScheduleTask={onScheduleTask}
+              onSetRecurrence={onSetRecurrence}
               emptyMessage={BROWSE_EMPTY_MESSAGE[granularity]}
             />
           )}
@@ -152,8 +165,8 @@ export default function TasksScreen() {
 
       {mode === 'open' && (
         <TaskComposer
-          onSubmit={(text, dueAt) => {
-            void insertTask(text, dueAt);
+          onSubmit={(text, dueAt, recurrence, recurrenceDays) => {
+            void insertTask(text, dueAt, recurrence, recurrenceDays);
           }}
         />
       )}
