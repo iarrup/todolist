@@ -9,6 +9,7 @@ import {
   insertTask,
   openTasksQuery,
   setTaskCompleted,
+  updateTaskSchedule,
   updateTaskText,
 } from '@/db/tasks';
 
@@ -62,11 +63,14 @@ export default function TasksScreen() {
         onDeleteTask={(id) => {
           void deleteTask(id);
         }}
+        onScheduleTask={(id, dueAt) => {
+          void updateTaskSchedule(id, dueAt);
+        }}
       />
 
       <TaskComposer
-        onSubmit={(text) => {
-          void insertTask(text);
+        onSubmit={(text, dueAt) => {
+          void insertTask(text, dueAt);
         }}
       />
     </KeyboardAvoidingView>

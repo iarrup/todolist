@@ -20,15 +20,17 @@ export type Note = typeof notes.$inferSelect;
 export type NewNote = typeof notes.$inferInsert;
 
 /**
- * A task is its text plus a completed flag (Phase 2, F7). Same minimalism
- * principle as notes: no title, no other metadata. Schedule/recurrence
- * columns are deliberately absent — they arrive with F9/F11's own
- * migrations.
+ * A task is its text plus a completed flag (Phase 2, F7) and an optional due
+ * moment (Phase 2, F9). Same minimalism principle as notes: no title, no
+ * other metadata. `dueAt` is nullable epoch milliseconds (unscheduled =
+ * `null`), matching `createdAt`/`updatedAt`'s plain-integer style. Recurrence
+ * columns are deliberately absent — they arrive with F11's own migration.
  */
 export const tasks = sqliteTable('tasks', {
   id: text('id').primaryKey(),
   text: text('text').notNull(),
   completed: integer('completed', { mode: 'boolean' }).notNull().default(false),
+  dueAt: integer('due_at'),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 });

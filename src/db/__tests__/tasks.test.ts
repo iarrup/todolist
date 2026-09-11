@@ -39,8 +39,14 @@ function makeDb() {
 
 type Db = ReturnType<typeof makeDb>;
 
-function seed(db: Db, text: string, createdAt: number, completed = false): Task {
-  const row: Task = { id: randomUUID(), text, completed, createdAt, updatedAt: createdAt };
+function seed(
+  db: Db,
+  text: string,
+  createdAt: number,
+  completed = false,
+  dueAt: number | null = null,
+): Task {
+  const row: Task = { id: randomUUID(), text, completed, dueAt, createdAt, updatedAt: createdAt };
   db.insert(tasks).values(row).run();
   return row;
 }
@@ -66,6 +72,10 @@ function setCompleted(db: Db, id: string, completed: boolean, updatedAt: number)
   db.update(tasks).set({ completed, updatedAt }).where(eq(tasks.id, id)).run();
 }
 
+function setSchedule(db: Db, id: string, dueAt: number | null, updatedAt: number): void {
+  db.update(tasks).set({ dueAt, updatedAt }).where(eq(tasks.id, id)).run();
+}
+
 function removeTask(db: Db, id: string): void {
   db.delete(tasks).where(eq(tasks.id, id)).run();
 }
@@ -76,7 +86,7 @@ function findById(db: Db, id: string): Task | undefined {
 }
 
 describe('tasks storage', () => {
-  it('round-trips an inserted task, defaulting to incomplete', () => {
+  it('round-trips an inserted task, defaulting to incomplete and unscheduled', () => {
     const db = makeDb();
     const written = seed(db, 'buy milk', Date.now());
 
@@ -86,6 +96,16 @@ describe('tasks storage', () => {
     expect(all[0].id).toBe(written.id);
     expect(all[0].text).toBe('buy milk');
     expect(all[0].completed).toBe(false);
+    expect(all[0].dueAt).toBeNull();
+  });
+
+  it('round-trips an inserted task with a due date (F9)', () => {
+    const db = makeDb();
+    const dueAt = new Date(2026, 8, 20, 15, 30).getTime();
+    const written = seed(db, 'call dentist', Date.now(), false, dueAt);
+
+    const found = findById(db, written.id);
+    expect(found?.dueAt).toBe(dueAt);
   });
 
   it('lists all tasks newest-first, unfiltered by completed state', () => {
@@ -138,6 +158,51 @@ describe('tasks storage', () => {
     expect(updated?.completed).toBe(true);
     expect(updated?.updatedAt).toBe(5000);
     expect(updated?.text).toBe('walk the dog');
+  });
+
+  it('sets a due date on a previously unscheduled task, bumping updatedAt (F9)', () => {
+    const db = makeDb();
+    const original = seed(db, 'renew passport', 1000);
+    const dueAt = new Date(2026, 9, 1, 9, 0).getTime();
+
+    setSchedule(db, original.id, dueAt, 5000);
+
+    const updated = findById(db, original.id);
+    expect(updated?.dueAt).toBe(dueAt);
+    expect(updated?.updatedAt).toBe(5000);
+    expect(updated?.text).toBe('renew passport');
+  });
+
+  it('changes an existing due date to a new one (F9)', () => {
+    const db = makeDb();
+    const oldDueAt = new Date(2026, 8, 20).getTime();
+    const original = seed(db, 'renew passport', 1000, false, oldDueAt);
+    const newDueAt = new Date(2026, 9, 1).getTime();
+
+    setSchedule(db, original.id, newDueAt, 5000);
+
+    expect(findById(db, original.id)?.dueAt).toBe(newDueAt);
+  });
+
+  it('clears a due date back to unscheduled (F9)', () => {
+    const db = makeDb();
+    const dueAt = new Date(2026, 8, 20).getTime();
+    const original = seed(db, 'renew passport', 1000, false, dueAt);
+
+    setSchedule(db, original.id, null, 5000);
+
+    const updated = findById(db, original.id);
+    expect(updated?.dueAt).toBeNull();
+    expect(updated?.updatedAt).toBe(5000);
+  });
+
+  it('accepts a past due date without error (F9)', () => {
+    const db = makeDb();
+    const pastDueAt = new Date(2020, 0, 1).getTime();
+
+    const written = seed(db, 'overdue thing', 1000, false, pastDueAt);
+
+    expect(findById(db, written.id)?.dueAt).toBe(pastDueAt);
   });
 
   it('deletes a task', () => {

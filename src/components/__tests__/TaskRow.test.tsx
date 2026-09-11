@@ -1,15 +1,23 @@
-import { describe, expect, it, jest } from '@jest/globals';
-import { fireEvent, render } from '@testing-library/react-native';
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
 
 import type { Task } from '@/db/schema';
 import type { TaskEditingController } from '@/hooks/useTaskEditing';
+import { pickDateTime } from '@/lib/pickDateTime';
 
 import { TaskRow } from '../TaskRow';
 
-const task = (id: string, text: string, completed = false): Task => ({
+// jest.mock calls are hoisted above imports by babel-plugin-jest-hoist, so
+// this still applies to the pickDateTime import above.
+jest.mock('@/lib/pickDateTime', () => ({ pickDateTime: jest.fn() }));
+
+const mockPickDateTime = pickDateTime as jest.MockedFunction<typeof pickDateTime>;
+
+const task = (id: string, text: string, completed = false, dueAt: number | null = null): Task => ({
   id,
   text,
   completed,
+  dueAt,
   createdAt: 1,
   updatedAt: 1,
 });
@@ -25,6 +33,10 @@ function notEditing(): TaskEditingController {
 }
 
 describe('TaskRow', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   it('renders the task text and an unchecked checkbox for an open task', () => {
     const { getByTestId, getByText } = render(
       <TaskRow
@@ -32,6 +44,7 @@ describe('TaskRow', () => {
         editing={notEditing()}
         onToggleComplete={jest.fn()}
         onDeleteTask={jest.fn()}
+        onScheduleTask={jest.fn()}
       />,
     );
 
@@ -46,6 +59,7 @@ describe('TaskRow', () => {
         editing={notEditing()}
         onToggleComplete={jest.fn()}
         onDeleteTask={jest.fn()}
+        onScheduleTask={jest.fn()}
       />,
     );
 
@@ -64,6 +78,7 @@ describe('TaskRow', () => {
         editing={notEditing()}
         onToggleComplete={onToggleComplete}
         onDeleteTask={jest.fn()}
+        onScheduleTask={jest.fn()}
       />,
     );
 
@@ -80,6 +95,7 @@ describe('TaskRow', () => {
         editing={editing}
         onToggleComplete={jest.fn()}
         onDeleteTask={jest.fn()}
+        onScheduleTask={jest.fn()}
       />,
     );
 
@@ -102,6 +118,7 @@ describe('TaskRow', () => {
         editing={editing}
         onToggleComplete={jest.fn()}
         onDeleteTask={jest.fn()}
+        onScheduleTask={jest.fn()}
       />,
     );
 
@@ -123,6 +140,7 @@ describe('TaskRow', () => {
         editing={editing}
         onToggleComplete={jest.fn()}
         onDeleteTask={jest.fn()}
+        onScheduleTask={jest.fn()}
       />,
     );
 
@@ -143,6 +161,7 @@ describe('TaskRow', () => {
         editing={notEditing()}
         onToggleComplete={jest.fn()}
         onDeleteTask={onDeleteTask}
+        onScheduleTask={jest.fn()}
       />,
     );
 
@@ -158,11 +177,121 @@ describe('TaskRow', () => {
         editing={notEditing()}
         onToggleComplete={jest.fn()}
         onDeleteTask={onDeleteTask}
+        onScheduleTask={jest.fn()}
       />,
     );
 
     fireEvent.press(getByTestId('task-delete-button'));
 
     expect(onDeleteTask).toHaveBeenCalledWith('1');
+  });
+
+  it('shows an add-schedule affordance and no due-at subtitle for an unscheduled task', () => {
+    const { getByTestId, queryByTestId } = render(
+      <TaskRow
+        task={task('1', 'buy milk')}
+        editing={notEditing()}
+        onToggleComplete={jest.fn()}
+        onDeleteTask={jest.fn()}
+        onScheduleTask={jest.fn()}
+      />,
+    );
+
+    expect(getByTestId('task-add-schedule')).toBeTruthy();
+    expect(queryByTestId('task-due-at')).toBeNull();
+    expect(queryByTestId('task-clear-schedule')).toBeNull();
+  });
+
+  it('shows the due date/time and a clear button for a scheduled task', () => {
+    const dueAt = new Date(2026, 8, 20, 15, 30).getTime();
+    const { getByTestId, queryByTestId } = render(
+      <TaskRow
+        task={task('1', 'buy milk', false, dueAt)}
+        editing={notEditing()}
+        onToggleComplete={jest.fn()}
+        onDeleteTask={jest.fn()}
+        onScheduleTask={jest.fn()}
+      />,
+    );
+
+    expect(getByTestId('task-due-at')).toBeTruthy();
+    expect(getByTestId('task-clear-schedule')).toBeTruthy();
+    expect(queryByTestId('task-add-schedule')).toBeNull();
+  });
+
+  it('tapping add-schedule opens the picker and forwards a picked date as the new schedule', async () => {
+    mockPickDateTime.mockResolvedValueOnce(new Date(2026, 8, 20, 15, 30));
+    const onScheduleTask = jest.fn();
+    const { getByTestId } = render(
+      <TaskRow
+        task={task('1', 'buy milk')}
+        editing={notEditing()}
+        onToggleComplete={jest.fn()}
+        onDeleteTask={jest.fn()}
+        onScheduleTask={onScheduleTask}
+      />,
+    );
+
+    fireEvent.press(getByTestId('task-add-schedule'));
+
+    await waitFor(() =>
+      expect(onScheduleTask).toHaveBeenCalledWith('1', new Date(2026, 8, 20, 15, 30).getTime()),
+    );
+  });
+
+  it('tapping the due-at subtitle reopens the picker seeded with the current schedule', () => {
+    const dueAt = new Date(2026, 8, 20, 15, 30).getTime();
+    mockPickDateTime.mockResolvedValueOnce(null);
+    const { getByTestId } = render(
+      <TaskRow
+        task={task('1', 'buy milk', false, dueAt)}
+        editing={notEditing()}
+        onToggleComplete={jest.fn()}
+        onDeleteTask={jest.fn()}
+        onScheduleTask={jest.fn()}
+      />,
+    );
+
+    fireEvent.press(getByTestId('task-due-at'));
+
+    expect(mockPickDateTime).toHaveBeenCalledWith(new Date(dueAt));
+  });
+
+  it('cancelling the picker (null result) does not change the schedule', async () => {
+    mockPickDateTime.mockResolvedValueOnce(null);
+    const onScheduleTask = jest.fn();
+    const { getByTestId } = render(
+      <TaskRow
+        task={task('1', 'buy milk')}
+        editing={notEditing()}
+        onToggleComplete={jest.fn()}
+        onDeleteTask={jest.fn()}
+        onScheduleTask={onScheduleTask}
+      />,
+    );
+
+    fireEvent.press(getByTestId('task-add-schedule'));
+
+    await waitFor(() => expect(mockPickDateTime).toHaveBeenCalled());
+    expect(onScheduleTask).not.toHaveBeenCalled();
+  });
+
+  it('tapping the clear button removes the schedule directly, without opening the picker', () => {
+    const dueAt = new Date(2026, 8, 20, 15, 30).getTime();
+    const onScheduleTask = jest.fn();
+    const { getByTestId } = render(
+      <TaskRow
+        task={task('1', 'buy milk', false, dueAt)}
+        editing={notEditing()}
+        onToggleComplete={jest.fn()}
+        onDeleteTask={jest.fn()}
+        onScheduleTask={onScheduleTask}
+      />,
+    );
+
+    fireEvent.press(getByTestId('task-clear-schedule'));
+
+    expect(onScheduleTask).toHaveBeenCalledWith('1', null);
+    expect(mockPickDateTime).not.toHaveBeenCalled();
   });
 });
