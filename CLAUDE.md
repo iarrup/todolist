@@ -68,9 +68,19 @@ both sharing one native Android date-then-time dialog flow
 (`src/lib/pickDateTime.ts`, via the new `@react-native-community/datetimepicker`
 dependency); a scheduled task shows its due date/time on the row (tap to
 change it) plus a clear affordance to unschedule it; cancelling either
-dialog leaves the existing schedule untouched. No recurrence or reminders
-yet (F11/F12), and no day/week/month/year task views yet (F10). See
-`PROGRESS.md` for pipeline state.
+dialog leaves the existing schedule untouched. **F10 (task time-based
+views)** is built: the Tasks tab now has an **Open | Browse** mode toggle
+(`TaskModeToggle`) — Open is F8's existing open-only, unfiltered-by-date
+list, unchanged; Browse is a new day/week/month/year scheduled-task browser
+(`TaskBrowseHeader`, extending F5's pattern with a fourth **Year**
+granularity) showing only tasks with a `dueAt` — open or completed —
+grouped **chronologically** (earliest-first, the opposite of Open mode's/
+notes' newest-first order): `GroupedTaskList` for Week/Month (day
+sub-headings), `YearGroupedTaskList` for Year (month sub-headings, each
+containing day sub-headings). Unscheduled tasks never appear in Browse
+(Open mode is the only way to see them); `TaskComposer` is hidden in Browse
+mode (adding a task stays an Open-mode-only action). No recurrence or
+reminders yet (F11/F12). See `PROGRESS.md` for pipeline state.
 
 **Tech stack (decided 2026-07-29, libs confirmed at F1):** React Native + Expo,
 Expo Router (navigation), `expo-sqlite` + `drizzle-orm`/`drizzle-kit`

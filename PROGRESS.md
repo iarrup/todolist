@@ -31,7 +31,7 @@ React Native + Expo (TypeScript).** See decision log.
 | F7 | Task management | Add/edit/delete/complete a task — minimal, text-only, no title | F1 | Done |
 | F8 | Task list view | Default view: all open (incomplete) tasks | F7 | Done |
 | F9 | Task scheduling | Add a date & time to a task | F7 | Done |
-| F10 | Task time-based views | Browse tasks by day / week / month / year | F9 | Backlog |
+| F10 | Task time-based views | Browse tasks by day / week / month / year | F9 | Done |
 | F11 | Task recurrence | Daily, weekdays, weekends, specific weekdays, monthly, annually | F9 | Backlog |
 | F12 | Reminders & snooze | Push notification at due time (incl. recurring instances) + snooze overdue tasks | F9, F11 | Backlog |
 
@@ -44,6 +44,131 @@ Not yet planned (`plan-phase`). Open questions: accounts/auth, conflict handling
 
 ## Decision log
 
+- **2026-09-10** — **F10 (Task time-based views): implementation gate
+  passed (review-and-gate) → F10 is Done.** All 17 spec DoD items verified
+  against the diff and on-device (Pixel_10_Pro emulator): Open mode
+  regression-checked unchanged from F8; the new Open|Browse toggle;
+  Day/Week/Month/Year segmented control including the new Year granularity
+  (month sub-headings nested with day sub-headings); scheduled tasks
+  correctly excluded/included by `dueAt`/`completed` per the spec's rules;
+  chronological (earliest-first) ordering confirmed across day and month
+  groups; granularity-switch anchor preservation and jump-to-today both
+  confirmed; long-press-edit and swipe-to-delete both verified working
+  from inside Browse mode, persisting across a full force-stop + relaunch;
+  `TaskComposer` confirmed absent from every Browse-mode screen. Diff
+  matches `.claude/plans/2/f10-task-timebased-views.plan.md`'s file list
+  exactly, no scope creep — no schema change, no new dependencies. One
+  finding surfaced during this gate's closer code-level pass (not just the
+  DoD checklist) and fixed before approval: `TaskList`'s hardcoded "All
+  caught up!" empty state was leaking into Browse/Day, making an empty
+  browsed day look identical to Open mode's empty list. Fixed: `TaskList`
+  gained an optional `emptyMessage` prop (default "All caught up!", Open
+  mode unaffected); `tasks.tsx` passes "No tasks today" for Browse/Day.
+  Re-verified after the fix: `npm test` (155/155, 29 suites), `tsc`,
+  `expo lint`, `prettier --check .` all clean; on-device (JS-only reload)
+  confirmed "No tasks today" renders correctly with no regression. No
+  further changes requested. Approved by: user (arup.chowdhary@gmail.com).
+- **2026-09-10** — **F10 (Task time-based views): implemented** on
+  `feature/task-timebased-views` per
+  `.claude/plans/2/f10-task-timebased-views.plan.md`, step by step, no
+  deviations from the plan. New: `src/db/yearRange.ts`,
+  `src/lib/formatYear.ts`, `src/lib/taskGranularity.ts`,
+  `src/lib/stepTaskDate.ts`, `src/lib/groupTasksByDay.ts`,
+  `src/lib/groupTasksByMonthAndDay.ts`, `src/components/TaskBrowseHeader.tsx`,
+  `src/components/TaskModeToggle.tsx`, `src/components/GroupedTaskList.tsx`,
+  `src/components/YearGroupedTaskList.tsx`, plus a `scheduledTasksFor*` query
+  family in `src/db/tasks.ts` (non-null `dueAt`, no `completed` filter,
+  ascending). `src/app/tasks.tsx` rewired for the Open/Browse toggle;
+  `TaskComposer` only renders in Open mode. No schema change, no new
+  dependencies.
+  - **Headless:** `npm test` (154/154, 29 suites — 24 new tests across 9 new
+    suites plus additions to `tasks.test.ts`), `tsc`, `expo lint`, and
+    `prettier --check .` all clean (only the pre-existing, unrelated
+    `todolist.code-workspace` warning). Grep checks (including the new,
+    untracked files individually, not just `git diff`) confirmed no
+    calendar-grid/date-picker-for-navigation/recurrence/notification/
+    network/backend/auth code introduced, and `package.json`/
+    `package-lock.json` are unchanged (no new dependencies). `openTasksQuery`
+    itself is untouched (only referenced in a new doc comment).
+  - **On-device (Pixel_10_Pro emulator, JS-only — no rebuild needed since F10
+    adds no native dependencies; reused the F9 build already installed):**
+    all 17 spec DoD items verified via `adb`/`uiautomator`, including a
+    live-corrected bounds-parsing bug in the driving script itself (was
+    reading the *preceding* sibling node's `bounds`, i.e. tapping "CANCEL"
+    instead of "OK" on the native date/time dialogs — fixed by reading
+    forward from each `resource-id` match instead of backward). Verified:
+    Open mode unchanged from F8 (regression-checked both before and after
+    completing a task); Open↔Browse toggle; Day/Week/Month/Year segmented
+    control including the new Year heading and month+day nested
+    sub-headings; a completed, scheduled task stays visible in Browse but
+    disappears from Open; an unscheduled task never appears in any Browse
+    granularity; ascending/chronological ordering confirmed across day and
+    month groups; granularity switch (Day, anchored on Sep 25 → Week) showed
+    "Sep 20 – Sep 26", not the real-world current week, confirming anchor
+    preservation; jump-to-today; long-press-edit and swipe-to-delete both
+    verified working from inside `GroupedTaskList` (Browse/Week), with the
+    edit and delete both confirmed to persist after a full
+    `am force-stop` + relaunch; `TaskComposer` confirmed absent from every
+    Browse-mode screen dump. No crashes or JS errors in logcat throughout.
+    Test data cleaned up from the device afterward.
+  - **One change made during implementation `review-and-gate`:** a closer
+    code-level pass (not just the DoD checklist) found that `TaskList`'s
+    empty state was hardcoded to F8's "All caught up!", reused as-is for
+    Browse/Day — so an empty browsed day looked identical to Open mode's
+    empty list, when Browse/Week, /Month, and /Year each show a tailored
+    "No tasks this ___" message. Not a DoD violation (the spec never
+    mandated Day-specific empty copy) but a real inconsistency. **Fixed**:
+    `TaskList` gained an optional `emptyMessage` prop (default "All caught
+    up!", so Open mode is byte-for-byte unaffected); `tasks.tsx` passes "No
+    tasks today" when rendering it for Browse/Day. One new test added
+    (`TaskList.test.tsx`). Re-verified: `npm test` (155/155), `tsc`,
+    `expo lint`, `prettier --check .` all clean; re-confirmed on-device
+    (JS-only reload, no rebuild) that Browse/Day's empty state now reads
+    "No tasks today" with no regression to Open mode's "All caught up!".
+  - **Ready for implementation `review-and-gate`.**
+- **2026-09-10** — **F10 (Task time-based views): technical plan approved
+  (review-and-gate).** Plan: `.claude/plans/2/f10-task-timebased-views.plan.md`
+  — no schema change (reuses F9's `dueAt`); new `TaskGranularity` type
+  (`day|week|month|year`) kept separate from notes' 3-way `Granularity`;
+  new `TaskBrowseHeader.tsx` and `stepTaskDate.ts` deliberately parallel
+  (not modify) F5-gated `BrowseHeader.tsx`/`stepDate.ts`, mirroring F7's
+  `useTaskEditing`-vs-`useNoteEditing` duplication precedent, since
+  generalizing either would force touching `index.tsx` (out of F10's
+  approved file list); new `yearRange.ts`/`formatYear.ts`,
+  `groupTasksByDay.ts`/`groupTasksByMonthAndDay.ts` (both ascending/
+  chronological, unlike notes' newest-first grouping), `scheduledTasksFor*`
+  query family in `db/tasks.ts` (non-null `dueAt`, no `completed` filter),
+  `GroupedTaskList.tsx` (week/month) and `YearGroupedTaskList.tsx` (one
+  `SectionList` sectioned by month with day-groups as items, avoiding
+  nested virtualized lists), and a `TaskModeToggle.tsx` for the Tasks tab's
+  new Open/Browse switch. `tasks.tsx` rewired to add mode + browsing state;
+  `TaskComposer` only renders in Open mode. No new dependencies. 16 ordered
+  implementation steps with a DoD-to-verification traceability table
+  covering all 17 spec acceptance criteria. Disclosed, precedent-consistent
+  gap: no dedicated `tasks.tsx` screen test (matches F7/F8/F9). Approved by:
+  user (arup.chowdhary@gmail.com). **Awaiting `implement-feature`.**
+- **2026-09-10** — **F10 (Task time-based views): spec written and gate
+  passed (elicited via `AskUserQuestion` before drafting, plus a
+  `review-and-gate` pass that surfaced and resolved two gaps before
+  approval).** Decisions confirmed with the user: the Tasks tab gains an
+  **Open | Browse** mode toggle — Open mode stays exactly F8's existing
+  open-only, unfiltered-by-date list (default on tab open); Browse mode
+  reuses F5's `BrowseHeader` pattern (prev/next, tap-to-today, segmented
+  control) extended with a fourth **Year** granularity, and shows **only
+  scheduled tasks** (`dueAt` non-null) for the browsed range — unscheduled
+  tasks are never shown in Browse, only reachable via Open. Unlike F8,
+  Browse mode **includes completed tasks** (a browsed day is a
+  calendar/history review, not a working list). Week/Month group by day;
+  Year groups by month then day. Two gaps found during `review-and-gate` and
+  resolved before approval: (1) **ordering** — Browse mode is chronological
+  throughout (earliest day/time first), the opposite of Open mode's/notes'
+  newest-first order; (2) **composer visibility** — `TaskComposer` is
+  **hidden in Browse mode** (adding a task stays an Open-mode-only action;
+  no auto-scheduling to the browsed anchor date). No recurrence/reminders
+  (F11/F12), no calendar grid or date-picker-for-navigation. Spec:
+  `.claude/specs/2-f10-task-timebased-views.md`. Built on branch
+  `feature/task-timebased-views`. Approved by: user
+  (arup.chowdhary@gmail.com). **Awaiting `write-technical-plan`.**
 - **2026-09-10** — **F9 (Task scheduling): implementation gate passed
   (review-and-gate) → F9 is Done.** All 13 spec DoD items verified against
   the diff (matches `.claude/plans/2/f9-task-scheduling.plan.md` exactly —
@@ -715,13 +840,16 @@ Not yet planned (`plan-phase`). Open questions: accounts/auth, conflict handling
     notifications (Phase 2) `expo-notifications`.
   - Approved by: user (arup.chowdhary@gmail.com).
 
-- **Now:** **F9 (Task scheduling) is Done**, on branch
-  `feature/task-scheduling` (not yet merged to `master`). `feature/tasklist-view`
-  (F8) also still needs a PR opened/merged to `master` — outstanding from the
-  prior session.
-- **Next:** Commit and open PRs for `feature/tasklist-view` (F8) and
-  `feature/task-scheduling` (F9), merge, then move to **F10 (Task
-  time-based views)** — spec it via `write-feature-spec`.
+- **Now:** **F10 (Task time-based views) is Done**, on branch
+  `feature/task-timebased-views` (not yet committed/merged). Phase 2's
+  scheduling/browsing arc (F7–F10) is now fully built; only F11 (recurrence)
+  and F12 (reminders & snooze) remain in Backlog. `feature/tasklist-view`
+  (F8) and `feature/task-scheduling` (F9) still need PRs opened/merged to
+  `master` — outstanding from prior sessions.
+- **Next:** Commit F10's changes and open a PR to `master`. Separately,
+  still owed: commit and open PRs for `feature/tasklist-view` (F8) and
+  `feature/task-scheduling` (F9), merge to `master`. After that, decompose
+  F11 (Task recurrence) via `write-feature-spec`.
 - **Workflow:** Each feature is built on its **own branch in a separate Claude
   Code session**; planning/decisions are tracked here on
   `feature/create-features`.

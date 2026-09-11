@@ -13,10 +13,15 @@ import path from 'path';
 
 import { describe, expect, it } from '@jest/globals';
 import Database from 'better-sqlite3';
-import { desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, isNotNull, lte } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 
+import { endOfDay, startOfDay } from '../dayRange';
+import { endOfMonth, startOfMonth } from '../monthRange';
+import { endOfWeek, startOfWeek } from '../weekRange';
+import { endOfYear, startOfYear } from '../yearRange';
 import { tasks, type Task } from '../schema';
+import type { TaskGranularity } from '@/lib/taskGranularity';
 
 const DRIZZLE_DIR = path.join(__dirname, '../../../drizzle');
 
@@ -83,6 +88,28 @@ function removeTask(db: Db, id: string): void {
 function findById(db: Db, id: string): Task | undefined {
   const [row] = db.select().from(tasks).where(eq(tasks.id, id)).all();
   return row;
+}
+
+function scheduledForRange(db: Db, start: number, end: number): Task[] {
+  return db
+    .select()
+    .from(tasks)
+    .where(and(isNotNull(tasks.dueAt), gte(tasks.dueAt, start), lte(tasks.dueAt, end)))
+    .orderBy(asc(tasks.dueAt))
+    .all();
+}
+
+function scheduledForGranularity(db: Db, granularity: TaskGranularity, date: Date): Task[] {
+  switch (granularity) {
+    case 'day':
+      return scheduledForRange(db, startOfDay(date), endOfDay(date));
+    case 'week':
+      return scheduledForRange(db, startOfWeek(date), endOfWeek(date));
+    case 'month':
+      return scheduledForRange(db, startOfMonth(date), endOfMonth(date));
+    case 'year':
+      return scheduledForRange(db, startOfYear(date), endOfYear(date));
+  }
 }
 
 describe('tasks storage', () => {
@@ -215,5 +242,84 @@ describe('tasks storage', () => {
     const all = listAll(db);
     expect(all).toHaveLength(1);
     expect(all[0].text).toBe('keep me');
+  });
+
+  it('excludes unscheduled tasks from a scheduled-range query (F10)', () => {
+    const db = makeDb();
+    const dueAt = new Date(2026, 8, 10, 9, 0).getTime();
+    seed(db, 'scheduled', 1000, false, dueAt);
+    seed(db, 'unscheduled', 2000);
+
+    const scoped = scheduledForRange(
+      db,
+      startOfDay(new Date(2026, 8, 10)),
+      endOfDay(new Date(2026, 8, 10)),
+    );
+
+    expect(scoped).toHaveLength(1);
+    expect(scoped[0].text).toBe('scheduled');
+  });
+
+  it('includes completed tasks in a scheduled-range query, unlike listOpen (F10)', () => {
+    const db = makeDb();
+    const dueAt = new Date(2026, 8, 10, 9, 0).getTime();
+    seed(db, 'done but scheduled', 1000, true, dueAt);
+
+    const scoped = scheduledForRange(
+      db,
+      startOfDay(new Date(2026, 8, 10)),
+      endOfDay(new Date(2026, 8, 10)),
+    );
+
+    expect(scoped).toHaveLength(1);
+    expect(scoped[0].completed).toBe(true);
+  });
+
+  it('orders a scheduled-range query ascending by due time', () => {
+    const db = makeDb();
+    const later = new Date(2026, 8, 10, 17, 0).getTime();
+    const earlier = new Date(2026, 8, 10, 9, 0).getTime();
+    seed(db, 'later', 1000, false, later);
+    seed(db, 'earlier', 2000, false, earlier);
+
+    const scoped = scheduledForRange(
+      db,
+      startOfDay(new Date(2026, 8, 10)),
+      endOfDay(new Date(2026, 8, 10)),
+    );
+
+    expect(scoped.map((t) => t.text)).toEqual(['earlier', 'later']);
+  });
+
+  it('scopes the day/week/month/year Browse granularities to the matching dueAt range (F10)', () => {
+    const db = makeDb();
+    const inDay = new Date(2026, 8, 9, 9, 0).getTime(); // Wed, Sep 9
+    const inWeekNotDay = new Date(2026, 8, 6, 9, 0).getTime(); // Sun, same week
+    const inMonthNotWeek = new Date(2026, 8, 20, 9, 0).getTime(); // still Sep
+    const inYearNotMonth = new Date(2026, 0, 5, 9, 0).getTime(); // Jan, same year
+    const nextYear = new Date(2027, 0, 5, 9, 0).getTime();
+    seed(db, 'in-day', 1, false, inDay);
+    seed(db, 'in-week', 2, false, inWeekNotDay);
+    seed(db, 'in-month', 3, false, inMonthNotWeek);
+    seed(db, 'in-year', 4, false, inYearNotMonth);
+    seed(db, 'next-year', 5, false, nextYear);
+
+    const anchor = new Date(2026, 8, 9);
+    expect(scheduledForGranularity(db, 'day', anchor).map((t) => t.text)).toEqual(['in-day']);
+    expect(
+      scheduledForGranularity(db, 'week', anchor)
+        .map((t) => t.text)
+        .sort(),
+    ).toEqual(['in-day', 'in-week'].sort());
+    expect(
+      scheduledForGranularity(db, 'month', anchor)
+        .map((t) => t.text)
+        .sort(),
+    ).toEqual(['in-day', 'in-week', 'in-month'].sort());
+    expect(
+      scheduledForGranularity(db, 'year', anchor)
+        .map((t) => t.text)
+        .sort(),
+    ).toEqual(['in-day', 'in-week', 'in-month', 'in-year'].sort());
   });
 });

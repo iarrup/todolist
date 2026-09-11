@@ -1,8 +1,13 @@
-import { desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, isNotNull, lte } from 'drizzle-orm';
 import * as Crypto from 'expo-crypto';
 
 import { db } from './client';
+import { startOfDay, endOfDay } from './dayRange';
+import { startOfMonth, endOfMonth } from './monthRange';
+import { startOfWeek, endOfWeek } from './weekRange';
+import { startOfYear, endOfYear } from './yearRange';
 import { tasks, type Task } from './schema';
+import type { TaskGranularity } from '@/lib/taskGranularity';
 
 /**
  * Data-access for tasks (Phase 2, F7). Mirrors src/db/notes.ts's shape.
@@ -64,4 +69,55 @@ export async function updateTaskSchedule(id: string, dueAt: number | null): Prom
 /** Delete a task. */
 export async function deleteTask(id: string): Promise<void> {
   await db.delete(tasks).where(eq(tasks.id, id));
+}
+
+/**
+ * Scheduled tasks (`dueAt` non-null) due within `[start, end]` (inclusive
+ * epoch ms), earliest-due-first — the Tasks tab's Browse mode (F10). Unlike
+ * `openTasksQuery`, this deliberately has no `completed` filter: a browsed
+ * day/week/month/year is a calendar/history review, so completed tasks stay
+ * visible there. The one range-query path every Browse granularity builds
+ * on, mirroring `notes.ts`'s `notesForRangeQuery`. Returned unexecuted so
+ * screens can pass it to `useLiveQuery`.
+ */
+function scheduledTasksForRangeQuery(start: number, end: number) {
+  return db
+    .select()
+    .from(tasks)
+    .where(and(isNotNull(tasks.dueAt), gte(tasks.dueAt, start), lte(tasks.dueAt, end)))
+    .orderBy(asc(tasks.dueAt));
+}
+
+/** Scheduled tasks due on the local calendar day containing `date`. */
+export function scheduledTasksForDayQuery(date: Date) {
+  return scheduledTasksForRangeQuery(startOfDay(date), endOfDay(date));
+}
+
+/** Scheduled tasks due in the local calendar week (Sunday-start) containing `date`. */
+export function scheduledTasksForWeekQuery(date: Date) {
+  return scheduledTasksForRangeQuery(startOfWeek(date), endOfWeek(date));
+}
+
+/** Scheduled tasks due in the local calendar month containing `date`. */
+export function scheduledTasksForMonthQuery(date: Date) {
+  return scheduledTasksForRangeQuery(startOfMonth(date), endOfMonth(date));
+}
+
+/** Scheduled tasks due in the local calendar year containing `date`. */
+export function scheduledTasksForYearQuery(date: Date) {
+  return scheduledTasksForRangeQuery(startOfYear(date), endOfYear(date));
+}
+
+/** Dispatches to the right `scheduledTasksFor*Query` for the current Browse granularity. */
+export function scheduledTasksForGranularityQuery(granularity: TaskGranularity, date: Date) {
+  switch (granularity) {
+    case 'day':
+      return scheduledTasksForDayQuery(date);
+    case 'week':
+      return scheduledTasksForWeekQuery(date);
+    case 'month':
+      return scheduledTasksForMonthQuery(date);
+    case 'year':
+      return scheduledTasksForYearQuery(date);
+  }
 }

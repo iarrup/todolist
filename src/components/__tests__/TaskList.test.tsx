@@ -37,6 +37,22 @@ describe('TaskList', () => {
     expect(queryAllByTestId('task-text')).toHaveLength(0);
   });
 
+  it('shows a custom empty message when emptyMessage is given (F10 Browse/Day)', () => {
+    const { getByText, queryByText } = render(
+      <TaskList
+        tasks={[]}
+        onEditTask={noop}
+        onToggleComplete={noop}
+        onDeleteTask={noop}
+        onScheduleTask={noop}
+        emptyMessage="No tasks today"
+      />,
+    );
+
+    expect(getByText('No tasks today')).toBeTruthy();
+    expect(queryByText('All caught up!')).toBeNull();
+  });
+
   it('renders tasks in the order given, without re-sorting', () => {
     const tasks = [task('1', 'oldest', 1), task('2', 'newest', 3), task('3', 'middle', 2)];
     const { getAllByTestId } = render(
