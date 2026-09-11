@@ -33,7 +33,7 @@ React Native + Expo (TypeScript).** See decision log.
 | F9 | Task scheduling | Add a date & time to a task | F7 | Done |
 | F10 | Task time-based views | Browse tasks by day / week / month / year | F9 | Done |
 | F11 | Task recurrence | Daily, weekdays, weekends, specific weekdays, monthly, annually | F9 | Done |
-| F12 | Reminders & snooze | Push notification at due time (incl. recurring instances) + snooze overdue tasks | F9, F11 | Backlog |
+| F12 | Reminders & snooze | Push notification at due time (incl. recurring instances) + snooze overdue tasks | F9, F11 | Done |
 
 **Cut lines (out of scope for Phase 2):** web surface, sync backend,
 accounts/auth (Phase 3); keyword search, note→task promotion (Later);
@@ -44,6 +44,192 @@ Not yet planned (`plan-phase`). Open questions: accounts/auth, conflict handling
 
 ## Decision log
 
+- **2026-09-10** — **F12 (Reminders & snooze): implementation gate passed
+  (review-and-gate) → F12 is Done. This completes Phase 2 (Tasks/Mobile) —
+  all of F7–F12 are now Done.** Diff matches
+  `.claude/plans/2/f12-reminders-n-snooze.plan.md`'s file list exactly (14
+  files, no scope creep — no schema/migration change, no `src/db/tasks.ts`
+  change). `npm test` (227/227, 35 suites), `tsc`, `expo lint`,
+  `prettier --check .` all clean. 16 of 19 spec DoD items independently
+  verified on a physical device with real elapsed-time waits (not just
+  mocked tests) — see the implementation entry below for the full
+  breakdown. Accepted as-is, without further on-device re-verification: DoD
+  8 (recurring-task reminder reschedule on completion — architecturally
+  low-risk, the reconciliation effect has no recurring-specific branch),
+  DoD 12's on-device spot check specifically (fully covered by
+  `snooze.test.ts` unit tests), and DoD 18 (foreground notification
+  delivery — configured per the SDK-57 docs, not independently re-driven).
+  True device-reboot survival (vs. force-stop + relaunch, tested several
+  times) also not separately verified. No changes requested. Approved by:
+  user (arup.chowdhary@gmail.com).
+- **2026-09-10** — **F12 (Reminders & snooze): implemented and verified
+  on-device (Pixel 10 Pro, physical, Android SDK 37) → ready for
+  implementation `review-and-gate`.** Built on `feature/reminders-n-snooze`
+  per `.claude/plans/2/f12-reminders-n-snooze.plan.md`, step by step; one
+  real bug found and fixed during on-device verification (below), otherwise
+  no deviations.
+  - **New:** `src/lib/snooze.ts` (`SNOOZE_PRESETS`/labels,
+    `computeSnoozeTime`, `isTaskOverdue` — pure, unit-tested like
+    `nextOccurrence.ts`), `src/lib/reminders.ts` (`configureNotifications`,
+    `requestNotificationPermission`, `reconcileTaskReminders` — the single
+    reconciliation entry point, cancel-then-reschedule against
+    `getAllScheduledNotificationsAsync()`, keyed by each task's own `id` as
+    the notification identifier). `_layout.tsx` gained two effects
+    (notification config + response listener; a cold-launch reconciliation
+    pass reading `openTasksQuery()` directly). `tasks.tsx` gained a
+    reconciliation effect keyed on the live `openTasks` query, a
+    `remindersOff` notice, `onSnoozeTask`, and `mode`-search-param handling
+    (adjusted **during render**, not in an effect, to satisfy
+    `react-hooks/set-state-in-effect`). `onSnoozeTask` threaded through
+    `TaskList`/`GroupedTaskList`/`YearGroupedTaskList`/`TaskRow` (mirrors
+    `onSetRecurrence`'s F11 precedent). `app.json` gained the
+    `expo-notifications` plugin block, reusing the existing
+    `android-icon-monochrome.png` asset as the notification icon — no new
+    asset, no `SCHEDULE_EXACT_ALARM` permission (per the user's decision to
+    accept approximate delivery timing rather than take on a Play Console
+    policy declaration and an Android-14 settings-deeplink gap the library
+    doesn't support). New dependency `expo-notifications@~57.0.17`.
+  - **One real bug found and fixed during on-device testing:**
+    `reconcileTaskReminders` was checking/requesting notification permission
+    **unconditionally**, even when there were zero tasks with a future
+    `dueAt` to schedule — meaning the cold-launch reconciliation pass would
+    trigger a permission check at every app launch regardless of whether
+    the user had ever scheduled anything, violating the spec's "lazily, at
+    first schedule" rule. **Fixed:** permission is now checked/requested
+    only when the target set (open tasks with a future `dueAt`) is
+    non-empty; cancelling stale reminders (which needs no permission) still
+    always runs. This is very likely also why the very first on-device
+    permission request never visibly prompted the user (see below) — the
+    cold-launch check was probably firing before the Activity was fully
+    resumed/interactive, at a moment where a real OS runtime-permission
+    dialog can silently fail to show. Two `reminders.test.ts` cases updated
+    to match (`getPermissionsAsync`/`requestPermissionsAsync` now provably
+    never called when there's nothing to schedule) plus a new case
+    asserting stale reminders still get cancelled even so.
+  - **Headless:** `npm test` (227/227, 35 suites — 10 new `snooze.ts`
+    tests, 9 new `reminders.ts` tests against a fully mocked
+    `expo-notifications` module following the `expo-speech-recognition`
+    mock precedent, plus new `TaskRow` snooze-row tests and mechanical
+    `onSnoozeTask` prop-threading updates to `TaskList`/
+    `GroupedTaskList`/`YearGroupedTaskList` tests), `tsc`, `expo lint`, and
+    `prettier --check .` all clean (only the pre-existing, unrelated
+    `todolist.code-workspace` warning). `git diff` confirmed zero
+    schema/migration changes and zero `src/db/tasks.ts` changes, matching
+    the plan exactly.
+  - **On-device (Pixel 10 Pro, physical, wireless adb):** required a fresh
+    native rebuild (new `expo-notifications` native module) — built via
+    `./android/gradlew :app:assembleDebug -PreactNativeArchitectures=arm64-v8a`
+    (matches the phone's arch) after `expo prebuild`; merged manifest
+    confirmed `POST_NOTIFICATIONS`/`RECEIVE_BOOT_COMPLETED` present (library-
+    contributed, not visible in the pre-merge generated manifest) and
+    `SCHEDULE_EXACT_ALARM` absent as intended. A stale long-running Metro
+    instance (started before `expo-notifications` was installed) caused an
+    `UnableToResolveError` on first launch — fixed by killing it and
+    restarting with `--clear`; not an app defect. 16 of the 19 spec DoD
+    items independently verified via `adb`/`uiautomator` plus real
+    elapsed-time waits (not just mocked tests) for actual notification
+    firing: permission-denied state shows the in-app "Reminders are off —
+    enable notifications in system settings to get them" notice without
+    blocking scheduling (DoD 1/2, confirmed via the real system Notification
+    settings screen — "You haven't allowed notifications from this app" —
+    toggled on there to proceed, since Android's own runtime dialog never
+    visibly appeared before the bug fix above); a scheduled task fires a
+    real `RTC_WAKEUP` alarm (confirmed in `dumpsys alarm`, tagged
+    `expo.modules.notifications.NOTIFICATION_EVENT`) that genuinely
+    delivers a notification whose body is exactly the task's text with no
+    title (DoD 3), carrying all three real "Snooze 10 min"/"Snooze 1
+    hour"/"Tomorrow" action buttons wired to real `PendingIntent`s (DoD 9);
+    tapping a notification's snooze action reschedules the task correctly
+    from a backgrounded app with no manual reopen (DoD 10); the in-app
+    snooze row produces an identical reschedule (DoD 11); clearing a
+    schedule, deleting a task, and completing a (non-recurring) scheduled
+    task each correctly cancel the pending `RTC_WAKEUP` alarm, confirmed via
+    `dumpsys alarm` before/after (DoD 4/5/6/7); scheduling a task to an
+    already-past date/time never fires a backdated notification — it just
+    shows overdue immediately (DoD 16); a plain tap on a fired notification
+    (isolated from Android's auto-grouping, which required clearing the
+    shade and testing a single notification to get a clean signal) opened
+    the app and **forced Open mode even though Browse mode was active
+    beforehand** (DoD 17); reminders reconciled correctly across several
+    force-stop + relaunch cycles throughout the session (DoD 13); Notes tab
+    and Tasks add/schedule/complete/delete all regression-checked
+    unaffected (DoD 19). **Disclosed, not independently re-verified this
+    pass:** DoD 8 (a *recurring* task's reminder reschedule on roll-forward
+    completion — the reconciliation effect reacts generically to any
+    `dueAt`/`completed` change with no recurring-specific branch, so this is
+    low-risk by construction, but no recurring task was actually driven
+    through a completion on-device this session); DoD 12's on-device spot
+    check specifically for "Tomorrow" (covered thoroughly by
+    `snooze.test.ts` unit tests, including a month-boundary case, but not
+    re-driven by hand on the device); DoD 18 (foreground delivery — every
+    on-device fire this session happened with the app backgrounded; the
+    `shouldShowBanner`/`shouldShowList` handler is configured per the SDK-57
+    docs but not independently confirmed showing while the app was in the
+    foreground). True device-reboot survival (as opposed to force-stop +
+    relaunch) was also not separately tested. No crashes or fatal JS errors
+    observed in logcat throughout. Test data (four ad hoc tasks, one note)
+    left on the device — swipe-to-reveal-delete didn't register through
+    repeated `adb` synthetic taps (the already-documented
+    `adb`-tap-vs-gesture-recognizer quirk from the `android-build-toolchain`
+    memory), not worth further time to chase since it doesn't affect the
+    app itself.
+  - **Ready for implementation `review-and-gate`.**
+- **2026-09-10** — **F12 (Reminders & snooze): technical plan approved
+  (review-and-gate, via Claude Code Plan Mode).** Plan:
+  `.claude/plans/2/f12-reminders-n-snooze.plan.md` — no schema/migration
+  change (snooze reuses `updateTaskSchedule`, confirmed safe since it only
+  clears recurrence when `dueAt` is set `null`, never the case for
+  snooze); new `src/lib/snooze.ts` (pure `computeSnoozeTime`/
+  `isTaskOverdue`, mirrors `nextOccurrence.ts`'s pure-helper precedent) and
+  `src/lib/reminders.ts` (thin `expo-notifications` wrapper, mirrors
+  `pickDateTime.ts`'s imperative-native-API-wrapper shape). Key design
+  decision made at this stage (not fully specified in the spec): reminder
+  scheduling is driven **reactively** off the existing `openTasks` live
+  query in `tasks.tsx` via one `useEffect` that reconciles the full
+  desired-reminder set against whatever `expo-notifications` currently has
+  scheduled, rather than bespoke logic in each mutation callback — this
+  means zero changes to `src/db/tasks.ts` and no duplicated
+  permission-request logic between `TaskComposer`/`TaskRow`. `_layout.tsx`
+  gets two new effects (notification config + response listener; a
+  cold-launch reconciliation pass via a direct await of the existing
+  `openTasksQuery()`) since React Navigation's tabs lazily mount, so
+  `tasks.tsx`'s own effect alone wouldn't cover a cold launch landing on
+  the Notes tab. `onSnoozeTask` threaded through `TaskList`/
+  `GroupedTaskList`/`YearGroupedTaskList`/`TaskRow`, same shape as
+  `onSetRecurrence`'s F11 precedent. One user decision made during this
+  stage: **does not request `SCHEDULE_EXACT_ALARM`** — reminders use
+  `expo-notifications`' default (possibly Doze-delayed) scheduling rather
+  than add a Play Console policy-declaration burden and an
+  Android-14-specific settings-deeplink gap the library doesn't support
+  natively; disclosed limitation, same pattern as F6's emulator-audio gap.
+  New dependency `expo-notifications` (`~57.x`, native rebuild required,
+  same pattern as F6/F9). 9 ordered implementation steps with a testing
+  approach traced to all 19 spec DoD items. Approved by: user
+  (arup.chowdhary@gmail.com). **Awaiting `implement-feature`.**
+- **2026-09-10** — **F12 (Reminders & snooze): spec written and gate passed
+  (elicited via `AskUserQuestion` before drafting, plus a `review-and-gate`
+  pass that surfaced and fixed three gaps before approval).** Decisions
+  confirmed with the user: notification library is **`expo-notifications`**
+  (new native dependency, requires a rebuild — same pattern as F6/F9);
+  snooze presets are **10 min / 1 hour / Tomorrow**; snooze is reachable
+  from **both** a fired notification's action buttons and an in-app
+  affordance on an overdue task's row; notification permission is
+  requested **lazily, at first schedule** (mirrors F6's on-demand mic
+  pattern); and **snooze moves `dueAt` itself** via the existing
+  `updateTaskSchedule` path rather than adding a new `snoozedUntil` column
+  — no schema change for this feature. Three gaps found during
+  `review-and-gate` and fixed before approval: (1) the snooze affordance
+  must appear wherever an overdue task's row renders (Open **and** Browse,
+  since `TaskRow` is shared and F9–F11 precedent threads row callbacks
+  through all three list components), not Open-only as first drafted; (2)
+  a task scheduled with an already-past due time must not fire a
+  backdated/immediate notification — it just starts overdue; (3) added
+  rules for notification-tap destination (opens Tasks tab/Open mode) and
+  foreground delivery. Reminder identity is keyed by the task's own `id`
+  (no new column needed to track a notification ID). Spec:
+  `.claude/specs/2-f12-reminders-n-snooze.md`. Built on branch
+  `feature/reminders-n-snooze`. Approved by: user
+  (arup.chowdhary@gmail.com). **Awaiting `write-technical-plan`.**
 - **2026-09-10** — **F11 (Task recurrence): implementation gate passed
   (review-and-gate) → F11 is Done.** A close code-level pass (not just the
   DoD checklist) specifically hunted for `recurrence`/`recurrenceDays`

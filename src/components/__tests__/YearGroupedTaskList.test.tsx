@@ -37,6 +37,7 @@ describe('YearGroupedTaskList', () => {
         onDeleteTask={noop}
         onScheduleTask={noop}
         onSetRecurrence={noop}
+        onSnoozeTask={noop}
       />,
     );
 
@@ -58,6 +59,7 @@ describe('YearGroupedTaskList', () => {
         onDeleteTask={noop}
         onScheduleTask={noop}
         onSetRecurrence={noop}
+        onSnoozeTask={noop}
       />,
     );
 
@@ -79,6 +81,7 @@ describe('YearGroupedTaskList', () => {
         onDeleteTask={noop}
         onScheduleTask={noop}
         onSetRecurrence={noop}
+        onSnoozeTask={noop}
       />,
     );
 
@@ -97,6 +100,7 @@ describe('YearGroupedTaskList', () => {
         onDeleteTask={noop}
         onScheduleTask={noop}
         onSetRecurrence={noop}
+        onSnoozeTask={noop}
       />,
     );
 

@@ -30,6 +30,7 @@ interface GroupedTaskListProps {
     recurrence: Recurrence | null,
     recurrenceDays: number[] | null,
   ) => void;
+  onSnoozeTask: (id: string, dueAt: number) => void;
   emptyMessage: string;
 }
 
@@ -40,6 +41,7 @@ export function GroupedTaskList({
   onDeleteTask,
   onScheduleTask,
   onSetRecurrence,
+  onSnoozeTask,
   emptyMessage,
 }: GroupedTaskListProps) {
   const editing = useTaskEditing(onEditTask);
@@ -76,6 +78,7 @@ export function GroupedTaskList({
           onDeleteTask={onDeleteTask}
           onScheduleTask={onScheduleTask}
           onSetRecurrence={onSetRecurrence}
+          onSnoozeTask={onSnoozeTask}
         />
       )}
     />

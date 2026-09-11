@@ -1,9 +1,18 @@
 import { useMigrations } from 'drizzle-orm/expo-sqlite/migrator';
-import { Tabs } from 'expo-router';
+import { router, Tabs } from 'expo-router';
+import * as Notifications from 'expo-notifications';
+import { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { db } from '@/db/client';
+import { openTasksQuery, updateTaskSchedule } from '@/db/tasks';
+import {
+  configureNotifications,
+  reconcileTaskReminders,
+  SNOOZE_ACTION_TO_PRESET,
+} from '@/lib/reminders';
+import { computeSnoozeTime } from '@/lib/snooze';
 import migrations from '../../drizzle/migrations';
 
 /**
@@ -16,6 +25,44 @@ import migrations from '../../drizzle/migrations';
  */
 export default function RootLayout() {
   const { success, error } = useMigrations(db, migrations);
+
+  // F12: notification config + the app-wide response listener (tap opens
+  // the Tasks tab in Open mode; a snooze action button reschedules the
+  // task directly). Registered once, independent of which tab is active —
+  // this is why it lives here rather than in tasks.tsx.
+  useEffect(() => {
+    void configureNotifications();
+    const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data as {
+        taskId?: string;
+        dueAt?: number;
+      };
+      if (!data.taskId) return;
+
+      if (response.actionIdentifier === Notifications.DEFAULT_ACTION_IDENTIFIER) {
+        router.push({ pathname: '/tasks', params: { mode: 'open' } });
+        return;
+      }
+
+      const preset = SNOOZE_ACTION_TO_PRESET[response.actionIdentifier];
+      if (!preset || data.dueAt == null) return;
+      const newDueAt = computeSnoozeTime(preset, new Date(), data.dueAt).getTime();
+      void updateTaskSchedule(data.taskId, newDueAt);
+    });
+    return () => subscription.remove();
+  }, []);
+
+  // F12: cold-launch reminder reconciliation — a safety net independent of
+  // whether the Tasks tab has ever been visited this session (React
+  // Navigation's tabs lazily mount, so tasks.tsx's own reconciliation
+  // effect alone wouldn't run until the user opens that tab).
+  useEffect(() => {
+    if (!success) return;
+    void (async () => {
+      const tasks = await openTasksQuery();
+      void reconcileTaskReminders(tasks);
+    })();
+  }, [success]);
 
   if (error) {
     return (

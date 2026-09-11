@@ -33,6 +33,7 @@ interface YearGroupedTaskListProps {
     recurrence: Recurrence | null,
     recurrenceDays: number[] | null,
   ) => void;
+  onSnoozeTask: (id: string, dueAt: number) => void;
 }
 
 export function YearGroupedTaskList({
@@ -42,6 +43,7 @@ export function YearGroupedTaskList({
   onDeleteTask,
   onScheduleTask,
   onSetRecurrence,
+  onSnoozeTask,
 }: YearGroupedTaskListProps) {
   const editing = useTaskEditing(onEditTask);
 
@@ -83,6 +85,7 @@ export function YearGroupedTaskList({
               onDeleteTask={onDeleteTask}
               onScheduleTask={onScheduleTask}
               onSetRecurrence={onSetRecurrence}
+              onSnoozeTask={onSnoozeTask}
             />
           ))}
         </View>

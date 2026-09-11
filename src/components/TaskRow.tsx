@@ -9,6 +9,12 @@ import { formatRecurrence } from '@/lib/formatRecurrence';
 import { formatTaskDueAt } from '@/lib/formatTaskDueAt';
 import { pickDateTime } from '@/lib/pickDateTime';
 import { parseRecurrenceDays, type Recurrence } from '@/lib/recurrence';
+import {
+  computeSnoozeTime,
+  isTaskOverdue,
+  SNOOZE_PRESETS,
+  SNOOZE_PRESET_LABELS,
+} from '@/lib/snooze';
 
 /**
  * A single task row: a checkbox (toggles complete), static text or (when
@@ -28,6 +34,11 @@ import { parseRecurrenceDays, type Recurrence } from '@/lib/recurrence';
  * schedule. Clearing the schedule (the existing "×" button) clears
  * recurrence too, server-side (see `db/tasks.ts`'s `updateTaskSchedule`) —
  * no extra wiring needed here for that.
+ *
+ * An overdue task (F12: due in the past, still open) also shows a snooze
+ * row (10 min / 1 hour / Tomorrow) — the exact same `computeSnoozeTime`
+ * pure function a fired notification's action buttons use, so both paths
+ * produce identical results.
  */
 interface TaskRowProps {
   task: Task;
@@ -40,6 +51,7 @@ interface TaskRowProps {
     recurrence: Recurrence | null,
     recurrenceDays: number[] | null,
   ) => void;
+  onSnoozeTask: (id: string, dueAt: number) => void;
 }
 
 export function TaskRow({
@@ -49,6 +61,7 @@ export function TaskRow({
   onDeleteTask,
   onScheduleTask,
   onSetRecurrence,
+  onSnoozeTask,
 }: TaskRowProps) {
   const { editingId, draftText, setDraftText, handleLongPress, commitEdit } = editing;
   const swipeableRef = useRef<Swipeable>(null);
@@ -58,6 +71,12 @@ export function TaskRow({
     const initial = task.dueAt ? new Date(task.dueAt) : new Date();
     const picked = await pickDateTime(initial);
     if (picked) onScheduleTask(task.id, picked.getTime());
+  };
+
+  const overdue = task.dueAt != null && isTaskOverdue(task, new Date());
+  const handleSnooze = (preset: (typeof SNOOZE_PRESETS)[number]) => {
+    if (task.dueAt == null) return;
+    onSnoozeTask(task.id, computeSnoozeTime(preset, new Date(), task.dueAt).getTime());
   };
 
   return (
@@ -143,7 +162,27 @@ export function TaskRow({
                   <Text style={styles.clearScheduleGlyph}>×</Text>
                 </Pressable>
               </View>
-            ) : (
+            ) : null}
+
+            {overdue && (
+              <View style={styles.snoozeRow}>
+                {SNOOZE_PRESETS.map((preset) => (
+                  <Pressable
+                    key={preset}
+                    testID={`task-snooze-${preset}`}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Snooze ${SNOOZE_PRESET_LABELS[preset]}`}
+                    onPress={() => handleSnooze(preset)}
+                    hitSlop={8}
+                    style={styles.snoozeButton}
+                  >
+                    <Text style={styles.snoozeButtonText}>{SNOOZE_PRESET_LABELS[preset]}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+
+            {task.dueAt == null && (
               <Pressable
                 testID="task-add-schedule"
                 accessibilityRole="button"
@@ -222,6 +261,21 @@ const styles = StyleSheet.create({
   addScheduleGlyph: {
     fontSize: 13,
     color: '#8a8a8e',
+  },
+  snoozeRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  snoozeButton: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(32,138,239,0.15)',
+  },
+  snoozeButtonText: {
+    fontSize: 12,
+    color: '#208AEF',
+    fontWeight: '600',
   },
   deleteButton: {
     justifyContent: 'center',
