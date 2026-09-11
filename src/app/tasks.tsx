@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
+import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
 
 import { GroupedTaskList } from '@/components/GroupedTaskList';
 import { TaskBrowseHeader } from '@/components/TaskBrowseHeader';
@@ -18,6 +19,7 @@ import {
   updateTaskSchedule,
   updateTaskText,
 } from '@/db/tasks';
+import { reconcileTaskReminders } from '@/lib/reminders';
 import type { Recurrence } from '@/lib/recurrence';
 import type { TaskGranularity } from '@/lib/taskGranularity';
 import { stepTaskDate } from '@/lib/stepTaskDate';
@@ -40,6 +42,29 @@ const BROWSE_EMPTY_MESSAGE: Record<Exclude<TaskGranularity, 'year'>, string> = {
 export default function TasksScreen() {
   const [mode, setMode] = useState<TaskMode>('open');
   const { data: openTasks } = useLiveQuery(openTasksQuery(), []);
+
+  // F12: a fired notification's plain tap navigates here with ?mode=open,
+  // so it always lands in Open mode regardless of whatever mode was last
+  // active before the tab was backgrounded. Adjusted during render (React's
+  // documented pattern for "state derived from a prop change") rather than
+  // in an effect, which would cause an extra cascading render.
+  const { mode: modeParam } = useLocalSearchParams<{ mode?: string }>();
+  const [handledModeParam, setHandledModeParam] = useState(modeParam);
+  if (modeParam !== handledModeParam) {
+    setHandledModeParam(modeParam);
+    if (modeParam === 'open') setMode('open');
+  }
+
+  // F12: reminders are reconciled reactively off this same live-queried
+  // open-tasks list — every schedule/reschedule/snooze/complete/delete
+  // (including a recurring task's roll-forward `dueAt`) already changes
+  // this list, so one effect here covers every case without bespoke
+  // per-action reminder wiring.
+  const [remindersOff, setRemindersOff] = useState(false);
+  useEffect(() => {
+    if (!openTasks) return;
+    void reconcileTaskReminders(openTasks).then((granted) => setRemindersOff(!granted));
+  }, [openTasks]);
 
   const [granularity, setGranularity] = useState<TaskGranularity>('day');
   const [anchorDate, setAnchorDate] = useState(() => new Date());
@@ -99,6 +124,9 @@ export default function TasksScreen() {
   ) => {
     void updateTaskRecurrence(id, recurrence, recurrenceDays);
   };
+  const onSnoozeTask = (id: string, dueAt: number) => {
+    void updateTaskSchedule(id, dueAt);
+  };
 
   return (
     <KeyboardAvoidingView
@@ -110,6 +138,12 @@ export default function TasksScreen() {
     >
       <TaskModeToggle mode={mode} onModeChange={setMode} />
 
+      {remindersOff && (
+        <Text style={styles.remindersOffNotice}>
+          Reminders are off — enable notifications in system settings to get them.
+        </Text>
+      )}
+
       {mode === 'open' ? (
         <TaskList
           tasks={openTasks}
@@ -118,6 +152,7 @@ export default function TasksScreen() {
           onDeleteTask={onDeleteTask}
           onScheduleTask={onScheduleTask}
           onSetRecurrence={onSetRecurrence}
+          onSnoozeTask={onSnoozeTask}
         />
       ) : (
         <View style={styles.listArea}>
@@ -138,6 +173,7 @@ export default function TasksScreen() {
               onDeleteTask={onDeleteTask}
               onScheduleTask={onScheduleTask}
               onSetRecurrence={onSetRecurrence}
+              onSnoozeTask={onSnoozeTask}
               emptyMessage={BROWSE_EMPTY_MESSAGE.day}
             />
           ) : granularity === 'year' ? (
@@ -148,6 +184,7 @@ export default function TasksScreen() {
               onDeleteTask={onDeleteTask}
               onScheduleTask={onScheduleTask}
               onSetRecurrence={onSetRecurrence}
+              onSnoozeTask={onSnoozeTask}
             />
           ) : (
             <GroupedTaskList
@@ -157,6 +194,7 @@ export default function TasksScreen() {
               onDeleteTask={onDeleteTask}
               onScheduleTask={onScheduleTask}
               onSetRecurrence={onSetRecurrence}
+              onSnoozeTask={onSnoozeTask}
               emptyMessage={BROWSE_EMPTY_MESSAGE[granularity]}
             />
           )}
@@ -180,5 +218,12 @@ const styles = StyleSheet.create({
   },
   listArea: {
     flex: 1,
+  },
+  remindersOffNotice: {
+    fontSize: 12,
+    color: '#8a8a8e',
+    textAlign: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 16,
   },
 });

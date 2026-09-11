@@ -32,6 +32,7 @@ interface TaskListProps {
     recurrence: Recurrence | null,
     recurrenceDays: number[] | null,
   ) => void;
+  onSnoozeTask: (id: string, dueAt: number) => void;
   emptyMessage?: string;
 }
 
@@ -42,6 +43,7 @@ export function TaskList({
   onDeleteTask,
   onScheduleTask,
   onSetRecurrence,
+  onSnoozeTask,
   emptyMessage = 'All caught up!',
 }: TaskListProps) {
   const editing = useTaskEditing(onEditTask);
@@ -67,6 +69,7 @@ export function TaskList({
           onDeleteTask={onDeleteTask}
           onScheduleTask={onScheduleTask}
           onSetRecurrence={onSetRecurrence}
+          onSnoozeTask={onSnoozeTask}
         />
       )}
     />

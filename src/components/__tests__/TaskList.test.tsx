@@ -33,6 +33,7 @@ describe('TaskList', () => {
         onDeleteTask={noop}
         onScheduleTask={noop}
         onSetRecurrence={noop}
+        onSnoozeTask={noop}
       />,
     );
 
@@ -49,6 +50,7 @@ describe('TaskList', () => {
         onDeleteTask={noop}
         onScheduleTask={noop}
         onSetRecurrence={noop}
+        onSnoozeTask={noop}
         emptyMessage="No tasks today"
       />,
     );
@@ -67,6 +69,7 @@ describe('TaskList', () => {
         onDeleteTask={noop}
         onScheduleTask={noop}
         onSetRecurrence={noop}
+        onSnoozeTask={noop}
       />,
     );
 
@@ -84,6 +87,7 @@ describe('TaskList', () => {
         onDeleteTask={noop}
         onScheduleTask={noop}
         onSetRecurrence={noop}
+        onSnoozeTask={noop}
       />,
     );
 
@@ -102,6 +106,7 @@ describe('TaskList', () => {
         onDeleteTask={noop}
         onScheduleTask={noop}
         onSetRecurrence={noop}
+        onSnoozeTask={noop}
       />,
     );
 
@@ -120,6 +125,7 @@ describe('TaskList', () => {
         onDeleteTask={noop}
         onScheduleTask={noop}
         onSetRecurrence={noop}
+        onSnoozeTask={noop}
       />,
     );
 
@@ -140,6 +146,7 @@ describe('TaskList', () => {
         onDeleteTask={noop}
         onScheduleTask={noop}
         onSetRecurrence={noop}
+        onSnoozeTask={noop}
       />,
     );
 
@@ -162,6 +169,7 @@ describe('TaskList', () => {
         onDeleteTask={noop}
         onScheduleTask={noop}
         onSetRecurrence={noop}
+        onSnoozeTask={noop}
       />,
     );
 
@@ -185,6 +193,7 @@ describe('TaskList', () => {
         onDeleteTask={noop}
         onScheduleTask={noop}
         onSetRecurrence={noop}
+        onSnoozeTask={noop}
       />,
     );
 
@@ -208,6 +217,7 @@ describe('TaskList', () => {
         onDeleteTask={noop}
         onScheduleTask={onScheduleTask}
         onSetRecurrence={noop}
+        onSnoozeTask={noop}
       />,
     );
 

@@ -48,6 +48,7 @@ describe('TaskRow', () => {
         onDeleteTask={jest.fn()}
         onScheduleTask={jest.fn()}
         onSetRecurrence={jest.fn()}
+        onSnoozeTask={jest.fn()}
       />,
     );
 
@@ -64,6 +65,7 @@ describe('TaskRow', () => {
         onDeleteTask={jest.fn()}
         onScheduleTask={jest.fn()}
         onSetRecurrence={jest.fn()}
+        onSnoozeTask={jest.fn()}
       />,
     );
 
@@ -84,6 +86,7 @@ describe('TaskRow', () => {
         onDeleteTask={jest.fn()}
         onScheduleTask={jest.fn()}
         onSetRecurrence={jest.fn()}
+        onSnoozeTask={jest.fn()}
       />,
     );
 
@@ -102,6 +105,7 @@ describe('TaskRow', () => {
         onDeleteTask={jest.fn()}
         onScheduleTask={jest.fn()}
         onSetRecurrence={jest.fn()}
+        onSnoozeTask={jest.fn()}
       />,
     );
 
@@ -126,6 +130,7 @@ describe('TaskRow', () => {
         onDeleteTask={jest.fn()}
         onScheduleTask={jest.fn()}
         onSetRecurrence={jest.fn()}
+        onSnoozeTask={jest.fn()}
       />,
     );
 
@@ -149,6 +154,7 @@ describe('TaskRow', () => {
         onDeleteTask={jest.fn()}
         onScheduleTask={jest.fn()}
         onSetRecurrence={jest.fn()}
+        onSnoozeTask={jest.fn()}
       />,
     );
 
@@ -171,6 +177,7 @@ describe('TaskRow', () => {
         onDeleteTask={onDeleteTask}
         onScheduleTask={jest.fn()}
         onSetRecurrence={jest.fn()}
+        onSnoozeTask={jest.fn()}
       />,
     );
 
@@ -188,6 +195,7 @@ describe('TaskRow', () => {
         onDeleteTask={onDeleteTask}
         onScheduleTask={jest.fn()}
         onSetRecurrence={jest.fn()}
+        onSnoozeTask={jest.fn()}
       />,
     );
 
@@ -205,6 +213,7 @@ describe('TaskRow', () => {
         onDeleteTask={jest.fn()}
         onScheduleTask={jest.fn()}
         onSetRecurrence={jest.fn()}
+        onSnoozeTask={jest.fn()}
       />,
     );
 
@@ -223,6 +232,7 @@ describe('TaskRow', () => {
         onDeleteTask={jest.fn()}
         onScheduleTask={jest.fn()}
         onSetRecurrence={jest.fn()}
+        onSnoozeTask={jest.fn()}
       />,
     );
 
@@ -242,6 +252,7 @@ describe('TaskRow', () => {
         onDeleteTask={jest.fn()}
         onScheduleTask={onScheduleTask}
         onSetRecurrence={jest.fn()}
+        onSnoozeTask={jest.fn()}
       />,
     );
 
@@ -263,6 +274,7 @@ describe('TaskRow', () => {
         onDeleteTask={jest.fn()}
         onScheduleTask={jest.fn()}
         onSetRecurrence={jest.fn()}
+        onSnoozeTask={jest.fn()}
       />,
     );
 
@@ -282,6 +294,7 @@ describe('TaskRow', () => {
         onDeleteTask={jest.fn()}
         onScheduleTask={onScheduleTask}
         onSetRecurrence={jest.fn()}
+        onSnoozeTask={jest.fn()}
       />,
     );
 
@@ -302,6 +315,7 @@ describe('TaskRow', () => {
         onDeleteTask={jest.fn()}
         onScheduleTask={onScheduleTask}
         onSetRecurrence={jest.fn()}
+        onSnoozeTask={jest.fn()}
       />,
     );
 
@@ -309,5 +323,99 @@ describe('TaskRow', () => {
 
     expect(onScheduleTask).toHaveBeenCalledWith('1', null);
     expect(mockPickDateTime).not.toHaveBeenCalled();
+  });
+
+  it('does not show the snooze row for a task due in the future', () => {
+    const dueAt = Date.now() + 60 * 60 * 1000;
+    const { queryByTestId } = render(
+      <TaskRow
+        task={task('1', 'buy milk', false, dueAt)}
+        editing={notEditing()}
+        onToggleComplete={jest.fn()}
+        onDeleteTask={jest.fn()}
+        onScheduleTask={jest.fn()}
+        onSetRecurrence={jest.fn()}
+        onSnoozeTask={jest.fn()}
+      />,
+    );
+
+    expect(queryByTestId('task-snooze-10min')).toBeNull();
+  });
+
+  it('does not show the snooze row for an unscheduled task', () => {
+    const { queryByTestId } = render(
+      <TaskRow
+        task={task('1', 'buy milk')}
+        editing={notEditing()}
+        onToggleComplete={jest.fn()}
+        onDeleteTask={jest.fn()}
+        onScheduleTask={jest.fn()}
+        onSetRecurrence={jest.fn()}
+        onSnoozeTask={jest.fn()}
+      />,
+    );
+
+    expect(queryByTestId('task-snooze-10min')).toBeNull();
+  });
+
+  it('does not show the snooze row for a completed task even if its dueAt is in the past', () => {
+    const dueAt = Date.now() - 60 * 60 * 1000;
+    const { queryByTestId } = render(
+      <TaskRow
+        task={task('1', 'buy milk', true, dueAt)}
+        editing={notEditing()}
+        onToggleComplete={jest.fn()}
+        onDeleteTask={jest.fn()}
+        onScheduleTask={jest.fn()}
+        onSetRecurrence={jest.fn()}
+        onSnoozeTask={jest.fn()}
+      />,
+    );
+
+    expect(queryByTestId('task-snooze-10min')).toBeNull();
+  });
+
+  it('shows the snooze row (10 min / 1 hour / Tomorrow) for an overdue task', () => {
+    const dueAt = Date.now() - 60 * 60 * 1000;
+    const { getByTestId } = render(
+      <TaskRow
+        task={task('1', 'buy milk', false, dueAt)}
+        editing={notEditing()}
+        onToggleComplete={jest.fn()}
+        onDeleteTask={jest.fn()}
+        onScheduleTask={jest.fn()}
+        onSetRecurrence={jest.fn()}
+        onSnoozeTask={jest.fn()}
+      />,
+    );
+
+    expect(getByTestId('task-snooze-10min')).toBeTruthy();
+    expect(getByTestId('task-snooze-1hour')).toBeTruthy();
+    expect(getByTestId('task-snooze-tomorrow')).toBeTruthy();
+  });
+
+  it('tapping a snooze preset calls onSnoozeTask with the computed new due time', () => {
+    const dueAt = new Date(2026, 8, 9, 9, 0).getTime(); // overdue relative to real "now"
+    const onSnoozeTask = jest.fn();
+    const { getByTestId } = render(
+      <TaskRow
+        task={task('1', 'buy milk', false, dueAt)}
+        editing={notEditing()}
+        onToggleComplete={jest.fn()}
+        onDeleteTask={jest.fn()}
+        onScheduleTask={jest.fn()}
+        onSetRecurrence={jest.fn()}
+        onSnoozeTask={onSnoozeTask}
+      />,
+    );
+
+    fireEvent.press(getByTestId('task-snooze-10min'));
+
+    expect(onSnoozeTask).toHaveBeenCalledTimes(1);
+    const [id, newDueAt] = onSnoozeTask.mock.calls[0] as [string, number];
+    expect(id).toBe('1');
+    // 10 min from "now" (real time), not from the original dueAt.
+    expect(newDueAt).toBeGreaterThan(Date.now());
+    expect(newDueAt).toBeLessThanOrEqual(Date.now() + 10 * 60 * 1000 + 1000);
   });
 });

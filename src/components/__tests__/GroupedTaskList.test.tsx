@@ -37,6 +37,7 @@ describe('GroupedTaskList', () => {
         onDeleteTask={noop}
         onScheduleTask={noop}
         onSetRecurrence={noop}
+        onSnoozeTask={noop}
         emptyMessage="No tasks this week"
       />,
     );
@@ -59,6 +60,7 @@ describe('GroupedTaskList', () => {
         onDeleteTask={noop}
         onScheduleTask={noop}
         onSetRecurrence={noop}
+        onSnoozeTask={noop}
         emptyMessage="No tasks this week"
       />,
     );
@@ -79,6 +81,7 @@ describe('GroupedTaskList', () => {
         onDeleteTask={noop}
         onScheduleTask={noop}
         onSetRecurrence={noop}
+        onSnoozeTask={noop}
         emptyMessage="No tasks this week"
       />,
     );
@@ -98,6 +101,7 @@ describe('GroupedTaskList', () => {
         onDeleteTask={noop}
         onScheduleTask={onScheduleTask}
         onSetRecurrence={noop}
+        onSnoozeTask={noop}
         emptyMessage="No tasks this week"
       />,
     );
@@ -120,6 +124,7 @@ describe('GroupedTaskList', () => {
         onDeleteTask={noop}
         onScheduleTask={noop}
         onSetRecurrence={noop}
+        onSnoozeTask={noop}
         emptyMessage="No tasks this week"
       />,
     );
