@@ -34,6 +34,7 @@ React Native + Expo (TypeScript).** See decision log.
 | F10 | Task time-based views | Browse tasks by day / week / month / year | F9 | Done |
 | F11 | Task recurrence | Daily, weekdays, weekends, specific weekdays, monthly, annually | F9 | Done |
 | F12 | Reminders & snooze | Push notification at due time (incl. recurring instances) + snooze overdue tasks | F9, F11 | Done |
+| F13 | Voice capture for tasks | Reuse F6's voice-to-text in `TaskComposer` | F6, F7 | Impl |
 
 **Cut lines (out of scope for Phase 2):** web surface, sync backend,
 accounts/auth (Phase 3); keyword search, note→task promotion (Later);
@@ -43,6 +44,64 @@ titles/tags/metadata on tasks (minimalism).
 Not yet planned (`plan-phase`). Open questions: accounts/auth, conflict handling.
 
 ## Decision log
+
+- **2026-09-12** — **F13 (Voice capture for tasks): implementation complete
+  per `.claude/plans/2/f13-voice-capture-tasks.plan.md`, pending final gate.**
+  Diff matches the plan's file list exactly — `src/components/TaskComposer.tsx`
+  (mic button wired through the unchanged `useVoiceCapture` hook) and
+  `src/components/__tests__/TaskComposer.test.tsx` (6 new tests: 5 ported
+  1:1 from `NoteComposer.test.tsx`'s F6 voice cases, plus one confirming a
+  pending schedule survives voice input). No change to `NoteComposer.tsx`,
+  `useVoiceCapture.ts`, `mergeVoiceTranscript.ts`, or `package.json`.
+  `npm test` (233/233, 35 suites), `tsc`, `expo lint`, `prettier --check .`
+  all clean. **On-device verification (DoD 12) explicitly deferred by user
+  decision** — neither physical phone was reachable over wireless adb at
+  implementation time; user chose to gate on headless checks only rather
+  than wait for a reconnect, with the intent to try voice capture on-device
+  next time they're using the app and report back if anything's off.
+  Implemented on branch `feature/voice-capture-tasks`.
+
+- **2026-09-12** — **F13 (Voice capture for tasks): technical plan approved
+  (review-and-gate) → advances to Impl.** Plan at
+  `.claude/plans/2/f13-voice-capture-tasks.plan.md`. Next: implementation.
+
+- **2026-09-12** — **F13 (Voice capture for tasks): technical plan written,
+  pending review.** Plan at `.claude/plans/2/f13-voice-capture-tasks.plan.md`
+  — pure reuse of F6's `useVoiceCapture`/`mergeVoiceTranscript` (both
+  unchanged) wired into `TaskComposer.tsx` the same way `NoteComposer.tsx`
+  already uses them; no new dependency, no native rebuild required beyond
+  the normal JS-change rebuild. Test plan ports F6's five
+  `NoteComposer.test.tsx` voice cases 1:1 into `TaskComposer.test.tsx`, plus
+  one new case confirming a pending schedule survives voice input.
+
+- **2026-09-12** — **F13 (Voice capture for tasks): spec approved
+  (review-and-gate) → advances to Plan.** Spec rewritten during review to
+  match the house spec convention (Overview/Depends on/Files to
+  change/Files to create/New dependencies/Rules for implementation/
+  Definition of done) used by F1–F12, rather than the generic template
+  first drafted. Flagged (non-blocking, user acknowledged): "voice for
+  tasks" isn't itself a line in `ideas-refined.md` (only "Add by voice"
+  under Notes) — this is a user-directed scope addition, not a pre-existing
+  product requirement. Spec at
+  `.claude/specs/2-f13-voice-capture-tasks.md`. Next: technical plan.
+
+- **2026-09-12** — **On-device testing feedback (release build installed on
+  Pixel 10 Pro + Pixel 6a for a multi-day trial) surfaced two items.**
+  1. **Schedule-button glyph fixed:** the 📅 emoji used for the "add/change
+     schedule" affordance in `TaskComposer` and `TaskRow` renders on-device
+     as a fixed-looking date graphic ("July 17"), which read as a real (and
+     wrong) date rather than a generic calendar icon, and took up more
+     visual space than needed. Swapped to 🕐 in both files — a cosmetic,
+     same-day fix to already-Done F9, not a spec/plan-gated change (no
+     behavior change, no new dependency, matches the existing
+     emoji-glyph-over-icon-library precedent from F6).
+  2. **F13 (Voice capture for tasks) added to the Phase 2 backlog:** task
+     capture was the one composer without F6's voice input. User chose to
+     add it as a new spec-gated feature (F13) rather than skip straight to
+     a technical plan. Spec written and pending review at
+     `.claude/specs/2-f13-voice-capture-tasks.md` — scoped as pure reuse of
+     F6's `useVoiceCapture`/`mergeVoiceTranscript`, no changes to either
+     file expected, no new dependency.
 
 - **2026-09-10** — **F12 (Reminders & snooze): implementation gate passed
   (review-and-gate) → F12 is Done. This completes Phase 2 (Tasks/Mobile) —

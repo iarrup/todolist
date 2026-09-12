@@ -191,7 +191,7 @@ export function TaskRow({
                 hitSlop={8}
                 style={styles.addScheduleButton}
               >
-                <Text style={styles.addScheduleGlyph}>📅 Schedule</Text>
+                <Text style={styles.addScheduleGlyph}>🕐 Schedule</Text>
               </Pressable>
             )}
           </View>

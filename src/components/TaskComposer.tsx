@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { RepeatPicker } from './RepeatPicker';
+import { useVoiceCapture } from '@/hooks/useVoiceCapture';
 import { formatRecurrence } from '@/lib/formatRecurrence';
 import { formatTaskDueAt } from '@/lib/formatTaskDueAt';
 import { normalizeNoteInput } from '@/lib/noteInput';
@@ -11,17 +12,17 @@ import type { Recurrence } from '@/lib/recurrence';
 
 /**
  * Minimal task-capture control: a multiline text input pinned at the bottom
- * of the Tasks screen with a send affordance. A task is only its text (no
- * title/metadata) plus an optional due date/time (F9) and an optional
- * recurrence rule (F11) — structurally the same as NoteComposer minus the
- * mic button (F6's voice capture was note-specific, out of scope for F7).
- * Return inserts a newline; the task is committed only by the send button,
- * and only when non-empty after trimming. After a save the field clears
- * (and any pending schedule/recurrence resets) but keeps focus for rapid
- * capture. Touching nothing on the schedule control creates an unscheduled
- * task, exactly as before F9; the Repeat control only appears once a
- * schedule is pending, and touching nothing on it creates a non-recurring
- * task, exactly as before F11.
+ * of the Tasks screen with a send affordance and a mic affordance for voice
+ * capture (F13, reusing F6's useVoiceCapture unchanged). A task is only its
+ * text (no title/metadata) plus an optional due date/time (F9) and an
+ * optional recurrence rule (F11). Return inserts a newline; the task is
+ * committed only by the send button, and only when non-empty after
+ * trimming. After a save the field clears (and any pending
+ * schedule/recurrence resets) but keeps focus for rapid capture. Touching
+ * nothing on the schedule control creates an unscheduled task, exactly as
+ * before F9; the Repeat control only appears once a schedule is pending, and
+ * touching nothing on it creates a non-recurring task, exactly as before
+ * F11.
  */
 interface TaskComposerProps {
   onSubmit: (
@@ -35,6 +36,7 @@ interface TaskComposerProps {
 export function TaskComposer({ onSubmit }: TaskComposerProps) {
   const insets = useSafeAreaInsets();
   const [value, setValue] = useState('');
+  const voice = useVoiceCapture(value, setValue);
   const [pendingDueAt, setPendingDueAt] = useState<number | null>(null);
   const [pendingRecurrence, setPendingRecurrence] = useState<Recurrence | null>(null);
   const [pendingRecurrenceDays, setPendingRecurrenceDays] = useState<number[] | null>(null);
@@ -63,6 +65,13 @@ export function TaskComposer({ onSubmit }: TaskComposerProps) {
     setPendingRecurrence(null);
     setPendingRecurrenceDays(null);
   };
+
+  const micLabel =
+    voice.status === 'listening'
+      ? 'Stop voice input'
+      : voice.status === 'unavailable'
+        ? 'Voice input unavailable'
+        : 'Start voice input';
 
   return (
     <View style={[styles.container, { paddingBottom: insets.bottom + 8 }]}>
@@ -113,18 +122,37 @@ export function TaskComposer({ onSubmit }: TaskComposerProps) {
           hitSlop={8}
           style={styles.scheduleButton}
         >
-          <Text style={styles.scheduleGlyph}>📅</Text>
+          <Text style={styles.scheduleGlyph}>🕐</Text>
         </Pressable>
         <TextInput
           testID="task-input"
           style={styles.input}
           value={value}
           onChangeText={setValue}
+          editable={voice.status !== 'listening'}
           placeholder="Add a task…"
           placeholderTextColor="#8a8a8e"
           multiline
           submitBehavior="newline"
         />
+        <Pressable
+          testID="task-mic"
+          accessibilityRole="button"
+          accessibilityLabel={micLabel}
+          accessibilityState={{
+            disabled: voice.status === 'unavailable',
+            selected: voice.status === 'listening',
+          }}
+          disabled={voice.status === 'unavailable'}
+          onPress={voice.toggle}
+          style={[
+            styles.micButton,
+            voice.status === 'listening' && styles.micButtonListening,
+            voice.status === 'unavailable' && styles.micButtonDisabled,
+          ]}
+        >
+          <Text style={styles.micButtonText}>{voice.status === 'listening' ? '⏹' : '🎤'}</Text>
+        </Pressable>
         <Pressable
           testID="task-send"
           accessibilityRole="button"
@@ -186,6 +214,21 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     fontSize: 16,
     backgroundColor: 'rgba(120,120,128,0.12)',
+  },
+  micButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: '#8a8a8e',
+  },
+  micButtonListening: {
+    backgroundColor: '#EF4444',
+  },
+  micButtonDisabled: {
+    opacity: 0.4,
+  },
+  micButtonText: {
+    fontSize: 18,
   },
   sendButton: {
     paddingHorizontal: 18,

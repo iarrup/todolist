@@ -93,7 +93,20 @@ weekday multi-select for "Specific days" that blocks confirming with zero
 days chosen; it's reused from both `TaskComposer` (at creation) and
 `TaskRow` (on an existing scheduled task) — recurrence is only reachable
 once a task has a schedule, and clearing a schedule clears its recurrence
-too. Reminders (F12) are next; no notification/snooze code yet.
+too. **F12 (reminders & snooze)** is built: scheduled/recurring tasks fire
+local push notifications (`expo-notifications`) at their due time, and an
+overdue task can be snoozed to resurface later. This completes Phase 2.
+
+Phase 2 follow-up: **F13 (voice capture for tasks)** is implemented, pending
+on-device verification: `TaskComposer` now has a mic button reusing F6's
+`useVoiceCapture` hook unchanged (same 🎤/⏹ glyph, tap-to-toggle, typing
+disabled only while listening) — pure reuse, no changes to
+`NoteComposer.tsx`, `useVoiceCapture.ts`, or `mergeVoiceTranscript.ts`.
+Added from on-device testing feedback rather than the original
+`ideas-refined.md` scope. All headless gates (tests/typecheck/lint/format)
+pass; real-device confirmation (speaking a task, watching it transcribe,
+saving, surviving relaunch) is deferred to the next on-device session — see
+`PROGRESS.md`'s decision log.
 See `PROGRESS.md` for pipeline state.
 
 **Tech stack (decided 2026-07-29, libs confirmed at F1):** React Native + Expo,
