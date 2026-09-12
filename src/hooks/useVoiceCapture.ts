@@ -8,6 +8,7 @@ export type VoiceCaptureStatus = 'idle' | 'listening' | 'unavailable';
 export interface VoiceCaptureController {
   status: VoiceCaptureStatus;
   toggle: () => void;
+  stop: () => void;
 }
 
 /**
@@ -18,6 +19,9 @@ export interface VoiceCaptureController {
  * status to 'unavailable' for the rest of this mount so the mic button
  * stops re-prompting on every tap; typing stays available regardless of
  * status (the caller disables the TextInput only while status === 'listening').
+ * `stop` is exposed (not just `toggle`) so a caller can end listening as a
+ * side effect of its own action (e.g. sending) — a no-op unless currently
+ * listening, so it never clobbers an 'unavailable' state into 'idle'.
  */
 export function useVoiceCapture(
   value: string,
@@ -65,6 +69,7 @@ export function useVoiceCapture(
   }
 
   function stop() {
+    if (status !== 'listening') return;
     ExpoSpeechRecognitionModule.stop();
     setStatus('idle');
   }
@@ -75,5 +80,5 @@ export function useVoiceCapture(
     else void start();
   }
 
-  return { status, toggle };
+  return { status, toggle, stop };
 }

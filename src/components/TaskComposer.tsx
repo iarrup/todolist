@@ -47,6 +47,7 @@ export function TaskComposer({ onSubmit }: TaskComposerProps) {
 
   const handleSend = () => {
     if (trimmed === null) return;
+    voice.stop();
     onSubmit(trimmed, pendingDueAt, pendingRecurrence, pendingRecurrenceDays);
     setValue('');
     setPendingDueAt(null);

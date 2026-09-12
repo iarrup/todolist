@@ -300,6 +300,25 @@ describe('TaskComposer', () => {
     expect(onSubmit).toHaveBeenCalledWith('still typeable', null, null, null);
   });
 
+  it('sending while listening stops recognition, so the next capture starts clean (regression)', async () => {
+    const onSubmit = jest.fn();
+    const { getByTestId } = render(<TaskComposer onSubmit={onSubmit} />);
+
+    await act(async () => {
+      fireEvent.press(getByTestId('task-mic'));
+    });
+    emitSpeechEvent('result', { results: [{ transcript: 'buy milk' }], isFinal: true });
+    fireEvent.press(getByTestId('task-send'));
+
+    expect(onSubmit).toHaveBeenCalledWith('buy milk', null, null, null);
+    expect(ExpoSpeechRecognitionModule.stop).toHaveBeenCalledTimes(1);
+    expect(getByTestId('task-mic').props.accessibilityState.selected).toBe(false);
+    expect(getByTestId('task-input').props.value).toBe('');
+
+    emitSpeechEvent('result', { results: [{ transcript: 'buy eggs' }], isFinal: false });
+    expect(getByTestId('task-input').props.value).toBe('');
+  });
+
   it('a no-speech/error event ends listening cleanly without discarding field text', async () => {
     const { getByTestId } = render(<TaskComposer onSubmit={jest.fn()} />);
 

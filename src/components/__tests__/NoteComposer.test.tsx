@@ -170,6 +170,31 @@ describe('NoteComposer', () => {
     expect(onSubmit).toHaveBeenCalledWith('still typeable');
   });
 
+  it('sending while listening stops recognition, so the next capture starts clean (regression)', async () => {
+    // Bug: sending didn't stop an active listening session, so the
+    // recognizer kept running with a stale baseText after the field was
+    // cleared — the next spoken segment merged onto leftover text from the
+    // note that was just sent instead of starting fresh.
+    const onSubmit = jest.fn();
+    const { getByTestId } = render(<NoteComposer onSubmit={onSubmit} />);
+
+    await act(async () => {
+      fireEvent.press(getByTestId('note-mic'));
+    });
+    emitSpeechEvent('result', { results: [{ transcript: 'buy milk' }], isFinal: true });
+    fireEvent.press(getByTestId('note-send'));
+
+    expect(onSubmit).toHaveBeenCalledWith('buy milk');
+    expect(ExpoSpeechRecognitionModule.stop).toHaveBeenCalledTimes(1);
+    expect(getByTestId('note-mic').props.accessibilityState.selected).toBe(false);
+    expect(getByTestId('note-input').props.value).toBe('');
+
+    // A stray result event after send (as if the native session hadn't
+    // actually torn down yet) must not leak into the now-idle field.
+    emitSpeechEvent('result', { results: [{ transcript: 'buy eggs' }], isFinal: false });
+    expect(getByTestId('note-input').props.value).toBe('');
+  });
+
   it('a no-speech/error event ends listening cleanly without discarding field text', async () => {
     const { getByTestId } = render(<NoteComposer onSubmit={jest.fn()} />);
 

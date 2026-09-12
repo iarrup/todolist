@@ -97,16 +97,19 @@ too. **F12 (reminders & snooze)** is built: scheduled/recurring tasks fire
 local push notifications (`expo-notifications`) at their due time, and an
 overdue task can be snoozed to resurface later. This completes Phase 2.
 
-Phase 2 follow-up: **F13 (voice capture for tasks)** is implemented, pending
-on-device verification: `TaskComposer` now has a mic button reusing F6's
-`useVoiceCapture` hook unchanged (same 🎤/⏹ glyph, tap-to-toggle, typing
-disabled only while listening) — pure reuse, no changes to
-`NoteComposer.tsx`, `useVoiceCapture.ts`, or `mergeVoiceTranscript.ts`.
-Added from on-device testing feedback rather than the original
-`ideas-refined.md` scope. All headless gates (tests/typecheck/lint/format)
-pass; real-device confirmation (speaking a task, watching it transcribe,
-saving, surviving relaunch) is deferred to the next on-device session — see
-`PROGRESS.md`'s decision log.
+Phase 2 follow-up: **F13 (voice capture for tasks)** is built and verified
+on-device on both physical phones (Pixel 6a and Pixel 10 Pro): `TaskComposer`
+now has a mic button reusing F6's `useVoiceCapture` hook (same 🎤/⏹ glyph,
+tap-to-toggle, typing disabled only while listening) — added from on-device
+testing feedback rather than the original `ideas-refined.md` scope. That same
+round of on-device testing also caught a real, pre-existing bug shared by F6
+and F13: sending a note/task never stopped an active listening session, so
+the recognizer kept running with stale state and the *next* voice capture
+bled into the one just sent. Fixed by exposing `useVoiceCapture`'s internal
+`stop()` and having both composers' send handlers call it. Also trimmed
+`TaskRow`'s "add schedule" affordance from "🕐 Schedule" to just "🕐" (the
+word was redundant next to the icon). See `PROGRESS.md`'s decision log for
+the full diagnosis.
 See `PROGRESS.md` for pipeline state.
 
 **Tech stack (decided 2026-07-29, libs confirmed at F1):** React Native + Expo,

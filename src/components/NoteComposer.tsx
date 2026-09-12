@@ -29,6 +29,7 @@ export function NoteComposer({ onSubmit }: NoteComposerProps) {
 
   const handleSend = () => {
     if (trimmed === null) return;
+    voice.stop();
     onSubmit(trimmed);
     setValue('');
   };

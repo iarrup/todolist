@@ -34,7 +34,7 @@ React Native + Expo (TypeScript).** See decision log.
 | F10 | Task time-based views | Browse tasks by day / week / month / year | F9 | Done |
 | F11 | Task recurrence | Daily, weekdays, weekends, specific weekdays, monthly, annually | F9 | Done |
 | F12 | Reminders & snooze | Push notification at due time (incl. recurring instances) + snooze overdue tasks | F9, F11 | Done |
-| F13 | Voice capture for tasks | Reuse F6's voice-to-text in `TaskComposer` | F6, F7 | Impl |
+| F13 | Voice capture for tasks | Reuse F6's voice-to-text in `TaskComposer` | F6, F7 | Done |
 
 **Cut lines (out of scope for Phase 2):** web surface, sync backend,
 accounts/auth (Phase 3); keyword search, note→task promotion (Later);
@@ -44,6 +44,39 @@ titles/tags/metadata on tasks (minimalism).
 Not yet planned (`plan-phase`). Open questions: accounts/auth, conflict handling.
 
 ## Decision log
+
+- **2026-09-12** — **F13 (Voice capture for tasks): on-device verification
+  passed on both phones (Pixel 10 Pro + Pixel 6a) → F13 is Done.** User
+  confirmed both the send-stops-listening fix and the schedule-icon label
+  trim work correctly on both devices: speaking a task, sending it, then
+  speaking and sending a second task no longer bleeds the first capture
+  into the second; the "add schedule" affordance now shows only 🕐. This
+  closes out DoD 12 for F13 (deferred earlier for lack of a reachable
+  device) and the round-2 bug fix below in the same pass.
+
+- **2026-09-12** — **On-device testing round 2 (F13 build installed on both
+  phones) surfaced two more items, both fixed same-day.**
+  1. **Bug (shared, affects F6 and F13):** sending a note/task never stopped
+     an active listening session. `useVoiceCapture`'s internal `stop()`
+     wasn't exposed to callers, so `NoteComposer`/`TaskComposer`'s
+     `handleSend` only cleared the visible field — the recognizer kept
+     running with its `baseTextRef` still pointing at the just-sent text.
+     The next spoken segment's `result` events then merged onto that stale
+     base instead of starting fresh, so two consecutive voice captures
+     (speak → send → speak → send) bled into each other. Fix: exposed
+     `stop` on `VoiceCaptureController` (a no-op unless `status ===
+     'listening'`, so it can't clobber the 'unavailable' denial state), and
+     both composers' `handleSend` now call `voice.stop()` before clearing
+     the field. Regression tests added to both `NoteComposer.test.tsx` and
+     `TaskComposer.test.tsx` reproducing the exact bleed-through and
+     asserting a stray post-send `result` event no longer leaks in.
+  2. **Cosmetic:** `TaskRow`'s "add schedule" affordance read "🕐 Schedule" —
+     redundant once the glyph itself reads as a schedule/time icon. Trimmed
+     to just "🕐" (no `TaskComposer`'s own schedule button was ever
+     redundant — it was icon-only from the start).
+  `npm test` (235/235, 35 suites), `tsc`, `expo lint`, `prettier --check .`
+  all clean. On-device re-verification still pending (see F13's own entry
+  below).
 
 - **2026-09-12** — **F13 (Voice capture for tasks): implementation complete
   per `.claude/plans/2/f13-voice-capture-tasks.plan.md`, pending final gate.**
