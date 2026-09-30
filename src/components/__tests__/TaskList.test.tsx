@@ -1,5 +1,6 @@
 import { describe, expect, it, jest } from '@jest/globals';
-import { fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
+import { BackHandler } from 'react-native';
 
 import type { Task } from '@/db/schema';
 
@@ -224,5 +225,40 @@ describe('TaskList', () => {
     fireEvent.press(getByTestId('task-clear-schedule'));
 
     expect(onScheduleTask).toHaveBeenCalledWith('1', null);
+  });
+
+  it('Back while editing saves the edit and is consumed (no app exit)', () => {
+    const handlers: (() => boolean)[] = [];
+    const spy = jest.spyOn(BackHandler, 'addEventListener').mockImplementation(((
+      _event: string,
+      handler: () => boolean,
+    ) => {
+      handlers.push(handler);
+      return { remove: jest.fn() };
+    }) as never);
+    const onEditTask = jest.fn();
+    const { getByTestId, queryByTestId } = render(
+      <TaskList
+        tasks={[task('1', 'hello', 1)]}
+        onEditTask={onEditTask}
+        onToggleComplete={noop}
+        onDeleteTask={noop}
+        onScheduleTask={noop}
+        onSetRecurrence={noop}
+        onSnoozeTask={noop}
+      />,
+    );
+
+    fireEvent(getByTestId('task-text-pressable-1'), 'longPress');
+    fireEvent.changeText(getByTestId('task-edit-input'), '  edited  ');
+    let consumed = false;
+    act(() => {
+      consumed = handlers[handlers.length - 1]();
+    });
+
+    expect(consumed).toBe(true);
+    expect(onEditTask).toHaveBeenCalledWith('1', 'edited');
+    expect(queryByTestId('task-edit-input')).toBeNull();
+    spy.mockRestore();
   });
 });

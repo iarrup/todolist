@@ -15,9 +15,10 @@ import { NoteRow } from './NoteRow';
 interface NoteListProps {
   notes: Note[];
   onEditNote: (id: string, text: string) => void;
+  onDeleteNote: (id: string) => void;
 }
 
-export function NoteList({ notes, onEditNote }: NoteListProps) {
+export function NoteList({ notes, onEditNote, onDeleteNote }: NoteListProps) {
   const editing = useNoteEditing(onEditNote);
 
   if (notes.length === 0) {
@@ -33,7 +34,9 @@ export function NoteList({ notes, onEditNote }: NoteListProps) {
       data={notes}
       keyExtractor={(item) => item.id}
       contentContainerStyle={styles.list}
-      renderItem={({ item }) => <NoteRow note={item} editing={editing} />}
+      renderItem={({ item }) => (
+        <NoteRow note={item} editing={editing} onDeleteNote={onDeleteNote} />
+      )}
     />
   );
 }

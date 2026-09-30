@@ -18,10 +18,16 @@ import { NoteRow } from './NoteRow';
 interface GroupedNoteListProps {
   notes: Note[];
   onEditNote: (id: string, text: string) => void;
+  onDeleteNote: (id: string) => void;
   emptyMessage: string;
 }
 
-export function GroupedNoteList({ notes, onEditNote, emptyMessage }: GroupedNoteListProps) {
+export function GroupedNoteList({
+  notes,
+  onEditNote,
+  onDeleteNote,
+  emptyMessage,
+}: GroupedNoteListProps) {
   const editing = useNoteEditing(onEditNote);
 
   if (notes.length === 0) {
@@ -48,7 +54,9 @@ export function GroupedNoteList({ notes, onEditNote, emptyMessage }: GroupedNote
           {formatDayHeading(new Date(section.dayStart))}
         </Text>
       )}
-      renderItem={({ item }) => <NoteRow note={item} editing={editing} />}
+      renderItem={({ item }) => (
+        <NoteRow note={item} editing={editing} onDeleteNote={onDeleteNote} />
+      )}
     />
   );
 }

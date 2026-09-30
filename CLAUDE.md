@@ -110,6 +110,19 @@ bled into the one just sent. Fixed by exposing `useVoiceCapture`'s internal
 `TaskRow`'s "add schedule" affordance from "🕐 Schedule" to just "🕐" (the
 word was redundant next to the icon). See `PROGRESS.md`'s decision log for
 the full diagnosis.
+
+Phase 2 follow-up: **F14 (delete notes)** is implemented (on
+`feature/delete-notes`, pending the implementation gate): swiping a note left
+reveals a red "Delete" button and tapping it hard-deletes the note (via the
+new `deleteNote` in `src/db/notes.ts`) — the same swipe-reveal-then-tap
+pattern as task delete (F7), with no confirmation, undo, or schema change.
+It lives in the shared `NoteRow`, so Day/Week/Month behave identically; a
+note being edited isn't swipeable. Related edit fixes from on-device testing:
+`NoteRow` now keeps one `Swipeable` wrapper across view/edit states, and
+`useNoteEditing`/`useTaskEditing` register an Android `BackHandler` while an
+edit is open so Back saves it (or reverts if emptied) and stays in the app
+instead of exiting. Long-press-to-edit on a note now triggers on the note's
+text, not its padding (as on tasks).
 See `PROGRESS.md` for pipeline state.
 
 **Tech stack (decided 2026-07-29, libs confirmed at F1):** React Native + Expo,

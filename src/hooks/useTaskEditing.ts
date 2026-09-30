@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { BackHandler } from 'react-native';
 
 import type { Task } from '@/db/schema';
 import { normalizeNoteInput } from '@/lib/noteInput';
@@ -31,6 +32,18 @@ export function useTaskEditing(
     setEditingId(null);
     setDraftText('');
   }
+
+  // While a task is being edited, the Android Back button saves the edit (or
+  // reverts it if emptied) and stays on the screen instead of exiting the app.
+  useEffect(() => {
+    if (editingId === null) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      commitEdit(editingId, draftText);
+      return true;
+    });
+    return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingId, draftText]);
 
   function handleLongPress(item: Task) {
     if (editingId !== null && editingId !== item.id) {

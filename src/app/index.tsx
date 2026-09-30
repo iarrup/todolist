@@ -6,7 +6,7 @@ import { BrowseHeader } from '@/components/BrowseHeader';
 import { GroupedNoteList } from '@/components/GroupedNoteList';
 import { NoteComposer } from '@/components/NoteComposer';
 import { NoteList } from '@/components/NoteList';
-import { insertNote, notesForGranularityQuery, updateNoteText } from '@/db/notes';
+import { deleteNote, insertNote, notesForGranularityQuery, updateNoteText } from '@/db/notes';
 import type { Granularity } from '@/lib/granularity';
 import { stepDate } from '@/lib/stepDate';
 
@@ -88,12 +88,18 @@ export default function TodayScreen() {
             onEditNote={(id, text) => {
               void updateNoteText(id, text);
             }}
+            onDeleteNote={(id) => {
+              void deleteNote(id);
+            }}
           />
         ) : (
           <GroupedNoteList
             notes={notes}
             onEditNote={(id, text) => {
               void updateNoteText(id, text);
+            }}
+            onDeleteNote={(id) => {
+              void deleteNote(id);
             }}
             emptyMessage={EMPTY_MESSAGE[granularity]}
           />
