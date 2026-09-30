@@ -34,6 +34,7 @@ React Native + Expo (TypeScript).** See decision log.
 | F10 | Task time-based views | Browse tasks by day / week / month / year | F9 | Done |
 | F11 | Task recurrence | Daily, weekdays, weekends, specific weekdays, monthly, annually | F9 | Done |
 | F12 | Reminders & snooze | Push notification at due time (incl. recurring instances) + snooze overdue tasks | F9, F11 | Done |
+| F14 | Delete notes | Swipe a note to reveal Delete; tap to hard-delete (mirrors F7 task delete) | F2, F3, F4, F5, F7 | Impl (pending gate) |
 
 **Cut lines (out of scope for Phase 2):** web surface, sync backend,
 accounts/auth (Phase 3); keyword search, note→task promotion (Later);
@@ -43,6 +44,47 @@ titles/tags/metadata on tasks (minimalism).
 Not yet planned (`plan-phase`). Open questions: accounts/auth, conflict handling.
 
 ## Decision log
+
+- **2026-09-30** — **F14 (Delete notes): spec, technical plan, and
+  implementation done on `feature/delete-notes` → ready for implementation
+  `review-and-gate`.** Spec `.claude/specs/2-f14-delete-notes.md`, plan
+  `.claude/plans/2/f14-delete-notes.plan.md`. Built per the plan:
+  `deleteNote` in `src/db/notes.ts`; swipe-to-reveal Delete in `NoteRow`
+  (mirrors `TaskRow`); required `onDeleteNote` prop threaded through
+  `NoteList`/`GroupedNoteList`/`index.tsx`. No schema, migration, or
+  dependency change. `npm test` (234/234, 35 suites), `tsc`, `expo lint`
+  clean; Prettier clean on all code (the only `format:check` warning is the
+  untracked `todolist.code-workspace`, not part of this change).
+  - **On-device (Pixel 10 Pro, physical, release build):** verified by the
+    user — swipe reveals Delete, tapping it deletes; Tasks swipe-delete
+    works; Back saves an edit in notes and tasks. **Not yet verified
+    on-device:** delete persisting across force-stop + relaunch, delete
+    from Week/Month views, delete while another note is mid-edit,
+    clear-to-empty revert after the edit-exit fix.
+  - **Bugs found on-device and fixed (beyond the plan):** (1) The device was
+    running an old *release* APK with its JS embedded, so no JS change (and
+    no Metro) ever reached it — swipe "not working" was the stale build,
+    not the code; fixed by building/installing a fresh release APK
+    (`assembleRelease -PreactNativeArchitectures=arm64-v8a`, then
+    `adb install -r`, same debug keystore so data is kept). Before that
+    diagnosis, `NoteRow` was restructured on a wrong guess (whole-row
+    `Pressable` blocking the swipe) — that guess was not the cause, but the
+    resulting structure was kept. (2) In edit mode a note couldn't be exited/
+    saved: `NoteRow` swapped its whole tree on edit; now one `Swipeable`
+    wrapper is kept (`enabled={!isEditing}`) like `TaskRow`. (3) Back saved
+    but also exited the app: `useNoteEditing` and `useTaskEditing` now
+    register a `BackHandler` while editing that commits the edit (or reverts
+    if emptied) and consumes the event. Tasks got the same Back behavior at
+    the user's request (outside F14's original spec scope).
+  - **Behavior change to note:** long-press-to-edit on a note now triggers
+    on the note's text only, not its padding (as on tasks).
+  - **Process slip:** while testing via `adb`, a Back keypress exited the
+    app and a swipe landed in a WhatsApp chat left open behind it; nothing
+    was sent, but the lesson is to confirm the foreground app before every
+    `adb` input.
+  - Also changed `.claude/commands/create-spec.md` to base new branches on
+    `master` instead of `main`.
+  Approved by: pending.
 
 - **2026-09-10** — **F12 (Reminders & snooze): implementation gate passed
   (review-and-gate) → F12 is Done. This completes Phase 2 (Tasks/Mobile) —
