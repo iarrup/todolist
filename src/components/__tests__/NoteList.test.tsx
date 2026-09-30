@@ -1,5 +1,6 @@
 import { describe, expect, it, jest } from '@jest/globals';
-import { fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
+import { BackHandler } from 'react-native';
 
 import type { Note } from '@/db/schema';
 
@@ -139,5 +140,32 @@ describe('NoteList', () => {
     fireEvent(getByTestId('note-row-1'), 'longPress');
 
     expect(getAllByTestId('note-delete-button')).toHaveLength(1);
+  });
+
+  it('Back while editing saves the edit and is consumed (no app exit)', () => {
+    const handlers: (() => boolean)[] = [];
+    const spy = jest.spyOn(BackHandler, 'addEventListener').mockImplementation(((
+      _event: string,
+      handler: () => boolean,
+    ) => {
+      handlers.push(handler);
+      return { remove: jest.fn() };
+    }) as never);
+    const onEditNote = jest.fn();
+    const { getByTestId, queryByTestId } = render(
+      <NoteList notes={[note('1', 'hello', 1)]} onEditNote={onEditNote} onDeleteNote={jest.fn()} />,
+    );
+
+    fireEvent(getByTestId('note-row-1'), 'longPress');
+    fireEvent.changeText(getByTestId('note-edit-input'), '  edited  ');
+    let consumed = false;
+    act(() => {
+      consumed = handlers[handlers.length - 1]();
+    });
+
+    expect(consumed).toBe(true);
+    expect(onEditNote).toHaveBeenCalledWith('1', 'edited');
+    expect(queryByTestId('note-edit-input')).toBeNull();
+    spy.mockRestore();
   });
 });

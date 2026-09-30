@@ -27,47 +27,48 @@ export function NoteRow({ note, editing, onDeleteNote }: NoteRowProps) {
   const { editingId, draftText, setDraftText, handleLongPress, commitEdit } = editing;
   const swipeableRef = useRef<Swipeable>(null);
 
-  if (note.id === editingId) {
-    return (
-      <View style={styles.note}>
-        <TextInput
-          testID="note-edit-input"
-          style={styles.noteText}
-          value={draftText}
-          onChangeText={setDraftText}
-          onBlur={() => commitEdit(note.id, draftText)}
-          multiline
-          submitBehavior="newline"
-          autoFocus
-        />
-      </View>
-    );
-  }
+  const isEditing = note.id === editingId;
 
   return (
     <Swipeable
       ref={swipeableRef}
-      renderRightActions={() => (
-        <Pressable
-          testID="note-delete-button"
-          accessibilityRole="button"
-          accessibilityLabel="Delete note"
-          onPress={() => {
-            swipeableRef.current?.close();
-            onDeleteNote(note.id);
-          }}
-          style={styles.deleteButton}
-        >
-          <Text style={styles.deleteButtonText}>Delete</Text>
-        </Pressable>
-      )}
+      enabled={!isEditing}
+      renderRightActions={() =>
+        isEditing ? null : (
+          <Pressable
+            testID="note-delete-button"
+            accessibilityRole="button"
+            accessibilityLabel="Delete note"
+            onPress={() => {
+              swipeableRef.current?.close();
+              onDeleteNote(note.id);
+            }}
+            style={styles.deleteButton}
+          >
+            <Text style={styles.deleteButtonText}>Delete</Text>
+          </Pressable>
+        )
+      }
     >
       <View style={styles.note}>
-        <Pressable testID={`note-row-${note.id}`} onLongPress={() => handleLongPress(note)}>
-          <Text testID="note-text" style={styles.noteText}>
-            {note.text}
-          </Text>
-        </Pressable>
+        {isEditing ? (
+          <TextInput
+            testID="note-edit-input"
+            style={styles.noteText}
+            value={draftText}
+            onChangeText={setDraftText}
+            onBlur={() => commitEdit(note.id, draftText)}
+            multiline
+            submitBehavior="newline"
+            autoFocus
+          />
+        ) : (
+          <Pressable testID={`note-row-${note.id}`} onLongPress={() => handleLongPress(note)}>
+            <Text testID="note-text" style={styles.noteText}>
+              {note.text}
+            </Text>
+          </Pressable>
+        )}
       </View>
     </Swipeable>
   );
