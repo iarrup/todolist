@@ -35,7 +35,7 @@ React Native + Expo (TypeScript).** See decision log.
 | F11 | Task recurrence | Daily, weekdays, weekends, specific weekdays, monthly, annually | F9 | Done |
 | F12 | Reminders & snooze | Push notification at due time (incl. recurring instances) + snooze overdue tasks | F9, F11 | Done |
 | F13 | Voice capture for tasks | Reuse F6's voice-to-text in `TaskComposer` | F6, F7 | Done |
-| F14 | Delete notes | Swipe a note to reveal Delete; tap to hard-delete (mirrors F7 task delete) | F2, F3, F4, F5, F7 | Impl (pending gate) |
+| F14 | Delete notes | Swipe a note to reveal Delete; tap to hard-delete (mirrors F7 task delete) | F2, F3, F4, F5, F7 | Done |
 
 **Cut lines (out of scope for Phase 2):** web surface, sync backend,
 accounts/auth (Phase 3); keyword search, note→task promotion (Later);
@@ -45,6 +45,35 @@ titles/tags/metadata on tasks (minimalism).
 Not yet planned (`plan-phase`). Open questions: accounts/auth, conflict handling.
 
 ## Decision log
+
+- **2026-09-30** — **F14 (Delete notes): implementation gate passed
+  (review-and-gate) → F14 is Done.** The five DoD items left unverified by
+  the original delete-notes session were walked through on-device (Pixel
+  10 Pro / Pixel 6a) and all confirmed by the user: (1) a deleted note
+  stays deleted across a full app force-stop + relaunch; (2) swipe-delete
+  works from Week and Month views, leaving the rest of a multi-note day
+  group intact; (3) deleting note B while note A is mid-edit leaves A's
+  edit untouched, which then saves correctly; (4) deleting the very note
+  currently being edited removes it cleanly with no crash or ghost row;
+  (5) clearing a note to empty and exiting via Back still reverts it
+  rather than deleting or leaving it empty — confirming the F14 Back-
+  handler fix didn't regress F4's original revert-on-empty behavior. All
+  of F14's spec DoD items (1–12) are now verified, closing the "pending"
+  status left by the delete-notes session.
+
+- **2026-09-30** — **`feature/voice-capture-tasks` (F13) merged with
+  `master` (which had since gained F14 via PR #17) and verified together on
+  both phones.** The two branches diverged from the same point right after
+  F12 and touched disjoint files, so the merge (`d70c6a9`) only conflicted
+  in `CLAUDE.md`/`PROGRESS.md`'s shared status sections — resolved by
+  combining both narratives in chronological order (F12 → F13 → F14).
+  `npm test` (242/242), `tsc`, `expo lint`, `prettier --check .` all clean
+  post-merge. Rebuilt and installed the merged release build on both the
+  Pixel 10 Pro and Pixel 6a; user confirmed both F13's voice-capture mic
+  button on Tasks and F14's swipe-to-delete on notes work correctly on
+  both phones. (F13's earlier install on these phones had actually been the
+  `feature/delete-notes` build, which predates F13 — that's why voice
+  capture briefly appeared "missing" on Tasks before this merge/reinstall.)
 
 - **2026-09-30** — **F14 (Delete notes): spec, technical plan, and
   implementation done on `feature/delete-notes` → ready for implementation
