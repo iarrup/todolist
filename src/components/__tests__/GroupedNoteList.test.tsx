@@ -18,7 +18,12 @@ const day2 = new Date(2026, 8, 2, 9, 0, 0).getTime();
 describe('GroupedNoteList', () => {
   it('shows the empty message when there are no notes', () => {
     const { getByText, queryAllByTestId } = render(
-      <GroupedNoteList notes={[]} onEditNote={jest.fn()} emptyMessage="No notes this week" />,
+      <GroupedNoteList
+        notes={[]}
+        onEditNote={jest.fn()}
+        onDeleteNote={jest.fn()}
+        emptyMessage="No notes this week"
+      />,
     );
 
     expect(getByText('No notes this week')).toBeTruthy();
@@ -32,7 +37,12 @@ describe('GroupedNoteList', () => {
       note('3', 'day1 late', day1 + 60_000),
     ];
     const { getAllByTestId, getByText } = render(
-      <GroupedNoteList notes={notes} onEditNote={jest.fn()} emptyMessage="No notes this week" />,
+      <GroupedNoteList
+        notes={notes}
+        onEditNote={jest.fn()}
+        onDeleteNote={jest.fn()}
+        emptyMessage="No notes this week"
+      />,
     );
 
     // Two day groups only (no group for a day with zero notes).
@@ -50,7 +60,12 @@ describe('GroupedNoteList', () => {
     const onEditNote = jest.fn();
     const notes = [note('1', 'hello', day1)];
     const { getByTestId } = render(
-      <GroupedNoteList notes={notes} onEditNote={onEditNote} emptyMessage="No notes this week" />,
+      <GroupedNoteList
+        notes={notes}
+        onEditNote={onEditNote}
+        onDeleteNote={jest.fn()}
+        emptyMessage="No notes this week"
+      />,
     );
 
     fireEvent(getByTestId('note-row-1'), 'longPress');
@@ -67,7 +82,12 @@ describe('GroupedNoteList', () => {
     const onEditNote = jest.fn();
     const notes = [note('1', 'first', day1), note('2', 'second', day2)];
     const { getByTestId } = render(
-      <GroupedNoteList notes={notes} onEditNote={onEditNote} emptyMessage="No notes this week" />,
+      <GroupedNoteList
+        notes={notes}
+        onEditNote={onEditNote}
+        onDeleteNote={jest.fn()}
+        emptyMessage="No notes this week"
+      />,
     );
 
     fireEvent(getByTestId('note-row-1'), 'longPress');
@@ -76,5 +96,27 @@ describe('GroupedNoteList', () => {
 
     expect(onEditNote).toHaveBeenCalledWith('1', 'edited first');
     expect(getByTestId('note-edit-input').props.value).toBe('second');
+  });
+
+  it('tapping Delete on one note in a multi-note day calls onDeleteNote with its id', () => {
+    const onDeleteNote = jest.fn();
+    const notes = [
+      note('1', 'late', day1 + 2),
+      note('2', 'early', day1 + 1),
+      note('3', 'other', day2),
+    ];
+    const { getAllByTestId } = render(
+      <GroupedNoteList
+        notes={notes}
+        onEditNote={jest.fn()}
+        onDeleteNote={onDeleteNote}
+        emptyMessage="No notes this week"
+      />,
+    );
+
+    expect(getAllByTestId('note-delete-button')).toHaveLength(3);
+    fireEvent.press(getAllByTestId('note-delete-button')[1]);
+
+    expect(onDeleteNote).toHaveBeenCalledTimes(1);
   });
 });

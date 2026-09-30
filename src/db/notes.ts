@@ -76,3 +76,8 @@ export async function listNotesForDay(date: Date): Promise<Note[]> {
 export async function updateNoteText(id: string, text: string): Promise<void> {
   await db.update(notes).set({ text, updatedAt: Date.now() }).where(eq(notes.id, id));
 }
+
+/** Delete a note. A non-existent id is a no-op. */
+export async function deleteNote(id: string): Promise<void> {
+  await db.delete(notes).where(eq(notes.id, id));
+}

@@ -78,6 +78,10 @@ function updateText(db: Db, id: string, text: string, updatedAt: number): void {
   db.update(notes).set({ text, updatedAt }).where(eq(notes.id, id)).run();
 }
 
+function deleteById(db: Db, id: string): void {
+  db.delete(notes).where(eq(notes.id, id)).run();
+}
+
 function findById(db: Db, id: string): Note {
   const [row] = db.select().from(notes).where(eq(notes.id, id)).all();
   return row;
@@ -147,5 +151,23 @@ describe('notes storage', () => {
     expect(updated.updatedAt).toBe(5000);
     expect(updated.id).toBe(original.id);
     expect(updated.createdAt).toBe(original.createdAt);
+  });
+
+  it('deletes only the target note; an unknown id is a no-op', () => {
+    const db = makeDb();
+    const keep = seed(db, 'keep', 1000);
+    const drop = seed(db, 'drop', 2000);
+
+    deleteById(db, drop.id);
+    expect(
+      db
+        .select()
+        .from(notes)
+        .all()
+        .map((n) => n.id),
+    ).toEqual([keep.id]);
+
+    deleteById(db, 'does-not-exist');
+    expect(db.select().from(notes).all()).toHaveLength(1);
   });
 });
