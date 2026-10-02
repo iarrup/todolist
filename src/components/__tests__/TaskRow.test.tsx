@@ -22,6 +22,7 @@ const task = (id: string, text: string, completed = false, dueAt: number | null 
   recurrenceDays: null,
   createdAt: 1,
   updatedAt: 1,
+  deletedAt: null,
 });
 
 function notEditing(): TaskEditingController {

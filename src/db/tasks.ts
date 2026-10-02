@@ -6,6 +6,7 @@ import { startOfDay, endOfDay } from './dayRange';
 import { startOfMonth, endOfMonth } from './monthRange';
 import { startOfWeek, endOfWeek } from './weekRange';
 import { startOfYear, endOfYear } from './yearRange';
+import { isLive } from './liveFilter';
 import { tasks, type Task } from './schema';
 import { nextOccurrence } from '@/lib/nextOccurrence';
 import { parseRecurrenceDays, serializeRecurrenceDays, type Recurrence } from '@/lib/recurrence';
@@ -41,6 +42,7 @@ export async function insertTask(
     recurrenceDays: serializeRecurrenceDays(recurrenceDays),
     createdAt: now,
     updatedAt: now,
+    deletedAt: null,
   };
   await db.insert(tasks).values(row);
   return row;
@@ -52,7 +54,7 @@ export async function insertTask(
  * nothing requires removing a working query.
  */
 export function tasksQuery() {
-  return db.select().from(tasks).orderBy(desc(tasks.createdAt));
+  return db.select().from(tasks).where(isLive(tasks)).orderBy(desc(tasks.createdAt));
 }
 
 /**
@@ -60,12 +62,19 @@ export function tasksQuery() {
  * view (F8). Returned unexecuted so screens can pass it to `useLiveQuery`.
  */
 export function openTasksQuery() {
-  return db.select().from(tasks).where(eq(tasks.completed, false)).orderBy(desc(tasks.createdAt));
+  return db
+    .select()
+    .from(tasks)
+    .where(and(isLive(tasks), eq(tasks.completed, false)))
+    .orderBy(desc(tasks.createdAt));
 }
 
 /** Update a task's text (and `updatedAt`); `id` and `createdAt` are untouched. */
 export async function updateTaskText(id: string, text: string): Promise<void> {
-  await db.update(tasks).set({ text, updatedAt: Date.now() }).where(eq(tasks.id, id));
+  await db
+    .update(tasks)
+    .set({ text, updatedAt: Date.now() })
+    .where(and(eq(tasks.id, id), isLive(tasks)));
 }
 
 /**
@@ -83,7 +92,10 @@ export async function updateTaskText(id: string, text: string): Promise<void> {
  */
 export async function setTaskCompleted(id: string, completed: boolean): Promise<void> {
   if (completed) {
-    const [task] = await db.select().from(tasks).where(eq(tasks.id, id));
+    const [task] = await db
+      .select()
+      .from(tasks)
+      .where(and(eq(tasks.id, id), isLive(tasks)));
     if (task?.recurrence != null && task.dueAt != null) {
       const next = nextOccurrence(
         new Date(task.dueAt),
@@ -93,11 +105,14 @@ export async function setTaskCompleted(id: string, completed: boolean): Promise<
       await db
         .update(tasks)
         .set({ dueAt: next.getTime(), updatedAt: Date.now() })
-        .where(eq(tasks.id, id));
+        .where(and(eq(tasks.id, id), isLive(tasks)));
       return;
     }
   }
-  await db.update(tasks).set({ completed, updatedAt: Date.now() }).where(eq(tasks.id, id));
+  await db
+    .update(tasks)
+    .set({ completed, updatedAt: Date.now() })
+    .where(and(eq(tasks.id, id), isLive(tasks)));
 }
 
 /**
@@ -112,7 +127,10 @@ export async function updateTaskSchedule(id: string, dueAt: number | null): Prom
     updates.recurrence = null;
     updates.recurrenceDays = null;
   }
-  await db.update(tasks).set(updates).where(eq(tasks.id, id));
+  await db
+    .update(tasks)
+    .set(updates)
+    .where(and(eq(tasks.id, id), isLive(tasks)));
 }
 
 /**
@@ -133,12 +151,20 @@ export async function updateTaskRecurrence(
       recurrenceDays: serializeRecurrenceDays(recurrenceDays),
       updatedAt: Date.now(),
     })
-    .where(eq(tasks.id, id));
+    .where(and(eq(tasks.id, id), isLive(tasks)));
 }
 
-/** Delete a task. */
+/**
+ * Soft-delete a task (F17): marks it deleted instead of removing the row, so
+ * the deletion can sync. `deletedAt` and `updatedAt` get the same moment. A
+ * non-existent or already-deleted id is a no-op (`updatedAt` is not advanced).
+ */
 export async function deleteTask(id: string): Promise<void> {
-  await db.delete(tasks).where(eq(tasks.id, id));
+  const now = Date.now();
+  await db
+    .update(tasks)
+    .set({ deletedAt: now, updatedAt: now })
+    .where(and(eq(tasks.id, id), isLive(tasks)));
 }
 
 /**
@@ -154,7 +180,9 @@ function scheduledTasksForRangeQuery(start: number, end: number) {
   return db
     .select()
     .from(tasks)
-    .where(and(isNotNull(tasks.dueAt), gte(tasks.dueAt, start), lte(tasks.dueAt, end)))
+    .where(
+      and(isLive(tasks), isNotNull(tasks.dueAt), gte(tasks.dueAt, start), lte(tasks.dueAt, end)),
+    )
     .orderBy(asc(tasks.dueAt));
 }
 

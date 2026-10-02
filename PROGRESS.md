@@ -42,9 +42,78 @@ accounts/auth (Phase 3); keyword search, note→task promotion (Later);
 titles/tags/metadata on tasks (minimalism).
 
 ### Phase 3 — Web & Sync
-Not yet planned (`plan-phase`). Open questions: accounts/auth, conflict handling.
+
+Feature list approved 2026-10-01 (`plan-phase`). Suggested order: F15 + F17
+(parallel) → F16 → F18 → F19 → F20 / F21.
+
+| # | Feature | One-liner | Depends on | Stage |
+|---|---|---|---|---|
+| F15 | Backend & cloud database | Hosted DB mirroring notes and tasks + minimal API (hosting/stack is a separate `choose-tech-stack` decision) | — | Backlog |
+| F16 | Google Sign-In | Phone signs in with Google; backend identifies the user; records scoped per user | F15 | Backlog |
+| F17 | Sync-ready local data | Soft delete (`deletedAt`) in place of hard deletes so deletions can sync; `id`/`updatedAt` already sync-ready ([spec](.claude/specs/3-f17-sync-ready-local-data.md), [plan](.claude/plans/3/f17-sync-ready-local-data.plan.md)) | — | Done |
+| F18 | Sync engine | Background push/pull, last-write-wins, initial upload of existing local data, offline-tolerant retries; UI keeps reading the local DB | F15, F16, F17 | Backlog |
+| F19 | Web shell + sign-in | Web app with Google Sign-In and Notes \| Tasks layout, reusing the cross-platform codebase | F15, F16 | Backlog |
+| F20 | Web notes view | Read-only day / week / month browsing of notes | F18, F19 | Backlog |
+| F21 | Web tasks view | Read-only Open list + day / week / month / year browse of tasks | F18, F19 | Backlog |
+
+**Cut lines (out of scope for Phase 3):** any editing on the web; keyword
+search and note→task promotion (Later); sharing / multiple users per account;
+web notifications; non-Google sign-in; titles/tags/metadata (minimalism).
 
 ## Decision log
+
+- **2026-10-01** — **F17 (Sync-ready local data): implementation gate passed
+  (review-and-gate) → F17 is Done.** Built on `feature/sync-ready-local-data`
+  (uncommitted at approval): nullable `deleted_at` on `notes`/`tasks`
+  (migration `0004_mixed_cerebro`), `src/db/liveFilter.ts` (`isLive`) applied
+  to every read and every by-id mutation, and `deleteNote`/`deleteTask` as
+  guarded soft deletes (`deletedAt = updatedAt = now`, idempotent). No UI or
+  dependency change. `npm test` 252/252, `tsc` and `expo lint` clean. Verified
+  on-device on both phones (Pixel 6a, Pixel 10 Pro) by installing the release
+  build over the existing install: existing notes (and, on the Pixel 10 Pro,
+  existing tasks) survived the migration; a deleted note/task vanished from
+  all views and stayed gone after force-stop + relaunch; a deleted scheduled
+  task's pending reminder alarm was cancelled (`dumpsys alarm`). Caveats
+  accepted by the user: criteria 3/5/6 (stored `deletedAt`, no resurrection,
+  idempotent delete) are proven by tests that re-state the SQL, since a
+  release build's DB can't be read; `format:check` flags the pre-existing
+  `todolist.code-workspace`. Next: user picks the next Phase 3 feature
+  (suggested: F15 backend, which first needs `choose-tech-stack`).
+
+- **2026-10-01** — **F17 (Sync-ready local data): technical-plan gate passed
+  (review-and-gate) → Plan approved.** Plan:
+  `.claude/plans/3/f17-sync-ready-local-data.plan.md`. Approach: nullable
+  `deleted_at` column on `notes` and `tasks` (generated drizzle migration
+  0004, additive only); shared `isLive` filter applied to every read in
+  `src/db/notes.ts`/`tasks.ts`; guarded soft-delete `UPDATE`s; mutations by id
+  ignore deleted rows; no UI/dependency changes. Verification includes an
+  upgrade-over-install on both phones. Next: implementation
+  (`implement-feature`) — not started; awaits the user's request.
+
+- **2026-10-01** — **F17 (Sync-ready local data): spec gate passed
+  (review-and-gate) → Spec approved.** Spec:
+  `.claude/specs/3-f17-sync-ready-local-data.md`. Finding that narrowed
+  scope: UUID `id`s and `createdAt`/`updatedAt` (bumped by every write path)
+  already exist, so F17 is essentially soft delete. Decisions (user chose
+  the recommendations): (1) nullable `deletedAt` column on `notes` and
+  `tasks`; (2) keep deletion markers forever, revisit purge in F18;
+  (3) snooze/reminder state stays device-local and unsynced. Next: technical
+  plan (`write-technical-plan`) — not started; awaits the user's request.
+
+- **2026-10-01** — **Phase 3 (Web & Sync) planned: F15–F21 approved
+  (plan-phase / review-and-gate).** Preferences elicited from the user:
+  (1) **web is view-only** (matches `ideas.md`; sidesteps most conflict
+  handling); (2) **Google Sign-In** (natural fit for an Android/Google Play
+  app; resolves the "accounts & auth" open question at the planning level —
+  details deferred to F16's spec); (3) **last-write-wins** per-item conflict
+  handling (resolves the "conflict handling" open question; fits single-field
+  items and a single user); (4) **local-first** phone — the on-device SQLite
+  stays the UI's source of truth and syncs in the background, preserving
+  instant capture. F17 is its own feature because the schema migration
+  touches data already on the user's phones; F18 is deliberately one feature
+  (not split into push/pull). Hosting/backend stack is not chosen here — it
+  goes through `choose-tech-stack` before F15's technical plan. Next step:
+  user picks which feature to spec first.
 
 - **2026-09-30** — **F14 (Delete notes): implementation gate passed
   (review-and-gate) → F14 is Done.** The five DoD items left unverified by

@@ -15,6 +15,7 @@ function task(id: string, dueAt: number, completed = false): Task {
     recurrenceDays: null,
     createdAt: dueAt,
     updatedAt: dueAt,
+    deletedAt: null,
   };
 }
 

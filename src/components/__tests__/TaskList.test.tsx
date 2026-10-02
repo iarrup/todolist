@@ -18,6 +18,7 @@ const task = (id: string, text: string, createdAt: number, completed = false): T
   recurrenceDays: null,
   createdAt,
   updatedAt: createdAt,
+  deletedAt: null,
 });
 
 const noop = () => {
