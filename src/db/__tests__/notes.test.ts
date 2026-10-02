@@ -18,6 +18,7 @@ import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { endOfDay, startOfDay } from '../dayRange';
 import { endOfMonth, startOfMonth } from '../monthRange';
 import { endOfWeek, startOfWeek } from '../weekRange';
+import { isLive } from '../liveFilter';
 import { notes, type Note } from '../schema';
 
 const DRIZZLE_DIR = path.join(__dirname, '../../../drizzle');
@@ -42,7 +43,7 @@ function makeDb() {
 type Db = ReturnType<typeof makeDb>;
 
 function seed(db: Db, text: string, createdAt: number): Note {
-  const row: Note = { id: randomUUID(), text, createdAt, updatedAt: createdAt };
+  const row: Note = { id: randomUUID(), text, createdAt, updatedAt: createdAt, deletedAt: null };
   db.insert(notes).values(row).run();
   return row;
 }
@@ -51,7 +52,13 @@ function listForDay(db: Db, date: Date): Note[] {
   return db
     .select()
     .from(notes)
-    .where(and(gte(notes.createdAt, startOfDay(date)), lte(notes.createdAt, endOfDay(date))))
+    .where(
+      and(
+        isLive(notes),
+        gte(notes.createdAt, startOfDay(date)),
+        lte(notes.createdAt, endOfDay(date)),
+      ),
+    )
     .orderBy(desc(notes.createdAt))
     .all();
 }
@@ -60,7 +67,13 @@ function listForWeek(db: Db, date: Date): Note[] {
   return db
     .select()
     .from(notes)
-    .where(and(gte(notes.createdAt, startOfWeek(date)), lte(notes.createdAt, endOfWeek(date))))
+    .where(
+      and(
+        isLive(notes),
+        gte(notes.createdAt, startOfWeek(date)),
+        lte(notes.createdAt, endOfWeek(date)),
+      ),
+    )
     .orderBy(desc(notes.createdAt))
     .all();
 }
@@ -69,17 +82,30 @@ function listForMonth(db: Db, date: Date): Note[] {
   return db
     .select()
     .from(notes)
-    .where(and(gte(notes.createdAt, startOfMonth(date)), lte(notes.createdAt, endOfMonth(date))))
+    .where(
+      and(
+        isLive(notes),
+        gte(notes.createdAt, startOfMonth(date)),
+        lte(notes.createdAt, endOfMonth(date)),
+      ),
+    )
     .orderBy(desc(notes.createdAt))
     .all();
 }
 
 function updateText(db: Db, id: string, text: string, updatedAt: number): void {
-  db.update(notes).set({ text, updatedAt }).where(eq(notes.id, id)).run();
+  db.update(notes)
+    .set({ text, updatedAt })
+    .where(and(eq(notes.id, id), isLive(notes)))
+    .run();
 }
 
-function deleteById(db: Db, id: string): void {
-  db.delete(notes).where(eq(notes.id, id)).run();
+/** Mirrors db/notes.ts's deleteNote (F17 soft delete). */
+function deleteById(db: Db, id: string, now = Date.now()): void {
+  db.update(notes)
+    .set({ deletedAt: now, updatedAt: now })
+    .where(and(eq(notes.id, id), isLive(notes)))
+    .run();
 }
 
 function findById(db: Db, id: string): Note {
@@ -153,21 +179,102 @@ describe('notes storage', () => {
     expect(updated.createdAt).toBe(original.createdAt);
   });
 
-  it('deletes only the target note; an unknown id is a no-op', () => {
+  it('soft-deletes only the target note; an unknown id is a no-op', () => {
     const db = makeDb();
     const keep = seed(db, 'keep', 1000);
     const drop = seed(db, 'drop', 2000);
+    const day = new Date(2000);
 
-    deleteById(db, drop.id);
-    expect(
-      db
-        .select()
-        .from(notes)
-        .all()
-        .map((n) => n.id),
-    ).toEqual([keep.id]);
+    deleteById(db, drop.id, 3000);
+    expect(listForDay(db, day).map((n) => n.id)).toEqual([keep.id]);
 
     deleteById(db, 'does-not-exist');
-    expect(db.select().from(notes).all()).toHaveLength(1);
+    expect(db.select().from(notes).all()).toHaveLength(2);
+  });
+
+  describe('soft delete (F17)', () => {
+    it('hides a deleted note from day, week, and month queries (AC1)', () => {
+      const db = makeDb();
+      const date = new Date(2026, 8, 10, 12, 0);
+      const gone = seed(db, 'gone', date.getTime());
+      const kept = seed(db, 'kept', date.getTime() + 1000);
+
+      deleteById(db, gone.id, date.getTime() + 2000);
+
+      expect(listForDay(db, date).map((n) => n.id)).toEqual([kept.id]);
+      expect(listForWeek(db, date).map((n) => n.id)).toEqual([kept.id]);
+      expect(listForMonth(db, date).map((n) => n.id)).toEqual([kept.id]);
+    });
+
+    it('keeps the row, with deletedAt equal to updatedAt (AC3)', () => {
+      const db = makeDb();
+      const note = seed(db, 'bye', 1000);
+
+      deleteById(db, note.id, 7000);
+
+      const row = findById(db, note.id);
+      expect(row).toBeDefined();
+      expect(row.deletedAt).toBe(7000);
+      expect(row.updatedAt).toBe(7000);
+      expect(row.text).toBe('bye');
+    });
+
+    it('does not let an edit resurrect or alter a deleted note (AC5)', () => {
+      const db = makeDb();
+      const note = seed(db, 'before', 1000);
+      deleteById(db, note.id, 2000);
+
+      updateText(db, note.id, 'after', 9000);
+
+      const row = findById(db, note.id);
+      expect(row.text).toBe('before');
+      expect(row.deletedAt).toBe(2000);
+      expect(row.updatedAt).toBe(2000);
+    });
+
+    it('is idempotent: a second delete does not advance updatedAt (AC6)', () => {
+      const db = makeDb();
+      const note = seed(db, 'twice', 1000);
+
+      deleteById(db, note.id, 2000);
+      deleteById(db, note.id, 8000);
+
+      const row = findById(db, note.id);
+      expect(row.deletedAt).toBe(2000);
+      expect(row.updatedAt).toBe(2000);
+    });
+
+    it('migrates existing rows as not-deleted, fields unchanged (AC4)', () => {
+      const sqlite = new Database(':memory:');
+      const files = fs
+        .readdirSync(DRIZZLE_DIR)
+        .filter((f) => f.endsWith('.sql'))
+        .sort();
+      const apply = (file: string) => {
+        const sqlText = fs.readFileSync(path.join(DRIZZLE_DIR, file), 'utf8');
+        for (const stmt of sqlText.split('--> statement-breakpoint')) {
+          if (stmt.trim()) sqlite.exec(stmt.trim());
+        }
+      };
+      const f17 = files.findIndex((f) => f.startsWith('0004'));
+      files.slice(0, f17).forEach(apply); // the F14-era schema
+      sqlite
+        .prepare('INSERT INTO notes (id, text, created_at, updated_at) VALUES (?, ?, ?, ?)')
+        .run('n1', 'pre-existing', 1000, 1500);
+
+      apply(files[f17]);
+
+      const row = sqlite.prepare('SELECT * FROM notes WHERE id = ?').get('n1') as Record<
+        string,
+        unknown
+      >;
+      expect(row).toMatchObject({
+        id: 'n1',
+        text: 'pre-existing',
+        created_at: 1000,
+        updated_at: 1500,
+        deleted_at: null,
+      });
+    });
   });
 });

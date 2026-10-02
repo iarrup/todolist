@@ -126,6 +126,16 @@ Android `BackHandler` while an edit is open so Back saves it (or reverts if
 emptied, confirmed not to delete) and stays in the app instead of exiting.
 Long-press-to-edit on a note now triggers on the note's text, not its
 padding (as on tasks).
+Phase 3 (Web & Sync) is planned (F15–F21: view-only web, Google
+Sign-In, last-write-wins, local-first sync — see `PROGRESS.md`). **F17
+(sync-ready local data)** is built and verified on-device on both physical
+phones: deleting a note or task is now a soft delete (nullable `deletedAt` on
+`notes`/`tasks`, migration `0004`) rather than removing the row, so the
+deletion can later sync. Every read and by-id mutation goes through the
+shared `isLive` filter (`src/db/liveFilter.ts`), so deleted items are
+invisible everywhere (including reminders) and can't be edited back to life;
+deleting is idempotent. No UI change — `id`/`createdAt`/`updatedAt` were
+already sync-ready, so F17 added only `deletedAt`.
 See `PROGRESS.md` for pipeline state.
 
 **Tech stack (decided 2026-07-29, libs confirmed at F1):** React Native + Expo,

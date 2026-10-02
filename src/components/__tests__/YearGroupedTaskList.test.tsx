@@ -17,6 +17,7 @@ const task = (id: string, text: string, dueAt: number, completed = false): Task 
   recurrenceDays: null,
   createdAt: dueAt,
   updatedAt: dueAt,
+  deletedAt: null,
 });
 
 const janDay1 = new Date(2026, 0, 5, 9, 0, 0).getTime();

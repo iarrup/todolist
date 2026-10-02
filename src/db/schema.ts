@@ -8,6 +8,9 @@ import { RECURRENCE_TYPES } from '../lib/recurrence';
  * Sync-ready shape for the Phase 3 backend without a later rewrite:
  *  - `id` is a globally-unique string (UUID), not an autoincrement int.
  *  - `createdAt` / `updatedAt` are epoch milliseconds, set by the app.
+ *  - `deletedAt` (Phase 3, F17) is nullable epoch ms: `null` = live, non-null
+ *    = soft-deleted at that moment. Deletion is a recorded fact so sync can
+ *    propagate it; every read filters on it (see `liveFilter.ts`).
  * Task columns (schedule, recurrence, completion) are deliberately absent —
  * they arrive in Phase 2.
  */
@@ -16,6 +19,7 @@ export const notes = sqliteTable('notes', {
   text: text('text').notNull(),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
+  deletedAt: integer('deleted_at'),
 });
 
 export type Note = typeof notes.$inferSelect;
@@ -32,7 +36,8 @@ export type NewNote = typeof notes.$inferInsert;
  * comma-separated day-of-week integers (`0`=Sunday … `6`=Saturday, matching
  * `Date.getDay()`/`weekRange.ts`). Recurrence has no meaning without a
  * `dueAt` anchor — enforced at the UI/data-access layer, not by a DB
- * constraint (see `src/db/tasks.ts`).
+ * constraint (see `src/db/tasks.ts`). `deletedAt` is the same soft-delete
+ * marker as on notes (F17).
  */
 export const tasks = sqliteTable('tasks', {
   id: text('id').primaryKey(),
@@ -43,6 +48,7 @@ export const tasks = sqliteTable('tasks', {
   recurrenceDays: text('recurrence_days'),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
+  deletedAt: integer('deleted_at'),
 });
 
 export type Task = typeof tasks.$inferSelect;

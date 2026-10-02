@@ -20,6 +20,7 @@ import { endOfDay, startOfDay } from '../dayRange';
 import { endOfMonth, startOfMonth } from '../monthRange';
 import { endOfWeek, startOfWeek } from '../weekRange';
 import { endOfYear, startOfYear } from '../yearRange';
+import { isLive } from '../liveFilter';
 import { tasks, type Task } from '../schema';
 import { nextOccurrence } from '@/lib/nextOccurrence';
 import { parseRecurrenceDays, serializeRecurrenceDays, type Recurrence } from '@/lib/recurrence';
@@ -64,43 +65,53 @@ function seed(
     recurrenceDays: serializeRecurrenceDays(recurrenceDays),
     createdAt,
     updatedAt: createdAt,
+    deletedAt: null,
   };
   db.insert(tasks).values(row).run();
   return row;
 }
 
 function listAll(db: Db): Task[] {
-  return db.select().from(tasks).orderBy(desc(tasks.createdAt)).all();
+  return db.select().from(tasks).where(isLive(tasks)).orderBy(desc(tasks.createdAt)).all();
 }
 
 function listOpen(db: Db): Task[] {
   return db
     .select()
     .from(tasks)
-    .where(eq(tasks.completed, false))
+    .where(and(isLive(tasks), eq(tasks.completed, false)))
     .orderBy(desc(tasks.createdAt))
     .all();
 }
 
 function updateText(db: Db, id: string, text: string, updatedAt: number): void {
-  db.update(tasks).set({ text, updatedAt }).where(eq(tasks.id, id)).run();
+  db.update(tasks)
+    .set({ text, updatedAt })
+    .where(and(eq(tasks.id, id), isLive(tasks)))
+    .run();
 }
 
 /** Mirrors db/tasks.ts's setTaskCompleted, including its F11 recurrence-aware branch. */
 function setCompleted(db: Db, id: string, completed: boolean, updatedAt: number): void {
   if (completed) {
     const task = findById(db, id);
-    if (task?.recurrence != null && task.dueAt != null) {
+    if (task?.deletedAt == null && task?.recurrence != null && task.dueAt != null) {
       const next = nextOccurrence(
         new Date(task.dueAt),
         task.recurrence,
         parseRecurrenceDays(task.recurrenceDays),
       );
-      db.update(tasks).set({ dueAt: next.getTime(), updatedAt }).where(eq(tasks.id, id)).run();
+      db.update(tasks)
+        .set({ dueAt: next.getTime(), updatedAt })
+        .where(and(eq(tasks.id, id), isLive(tasks)))
+        .run();
       return;
     }
   }
-  db.update(tasks).set({ completed, updatedAt }).where(eq(tasks.id, id)).run();
+  db.update(tasks)
+    .set({ completed, updatedAt })
+    .where(and(eq(tasks.id, id), isLive(tasks)))
+    .run();
 }
 
 /** Mirrors db/tasks.ts's updateTaskSchedule, including clearing recurrence when dueAt clears. */
@@ -110,7 +121,10 @@ function setSchedule(db: Db, id: string, dueAt: number | null, updatedAt: number
     updates.recurrence = null;
     updates.recurrenceDays = null;
   }
-  db.update(tasks).set(updates).where(eq(tasks.id, id)).run();
+  db.update(tasks)
+    .set(updates)
+    .where(and(eq(tasks.id, id), isLive(tasks)))
+    .run();
 }
 
 /** Mirrors db/tasks.ts's updateTaskRecurrence. */
@@ -123,12 +137,16 @@ function setRecurrence(
 ): void {
   db.update(tasks)
     .set({ recurrence, recurrenceDays: serializeRecurrenceDays(recurrenceDays), updatedAt })
-    .where(eq(tasks.id, id))
+    .where(and(eq(tasks.id, id), isLive(tasks)))
     .run();
 }
 
-function removeTask(db: Db, id: string): void {
-  db.delete(tasks).where(eq(tasks.id, id)).run();
+/** Mirrors db/tasks.ts's deleteTask (F17 soft delete). */
+function removeTask(db: Db, id: string, now = Date.now()): void {
+  db.update(tasks)
+    .set({ deletedAt: now, updatedAt: now })
+    .where(and(eq(tasks.id, id), isLive(tasks)))
+    .run();
 }
 
 function findById(db: Db, id: string): Task | undefined {
@@ -140,7 +158,9 @@ function scheduledForRange(db: Db, start: number, end: number): Task[] {
   return db
     .select()
     .from(tasks)
-    .where(and(isNotNull(tasks.dueAt), gte(tasks.dueAt, start), lte(tasks.dueAt, end)))
+    .where(
+      and(isLive(tasks), isNotNull(tasks.dueAt), gte(tasks.dueAt, start), lte(tasks.dueAt, end)),
+    )
     .orderBy(asc(tasks.dueAt))
     .all();
 }
@@ -278,7 +298,7 @@ describe('tasks storage', () => {
     expect(findById(db, written.id)?.dueAt).toBe(pastDueAt);
   });
 
-  it('deletes a task', () => {
+  it('soft-deletes a task so it leaves the list', () => {
     const db = makeDb();
     const toDelete = seed(db, 'delete me', 1000);
     seed(db, 'keep me', 2000);
@@ -474,5 +494,114 @@ describe('tasks storage', () => {
     setRecurrence(db, original.id, null, null, 5000);
     expect(findById(db, original.id)?.recurrence).toBeNull();
     expect(findById(db, original.id)?.dueAt).toBe(dueAt);
+  });
+
+  describe('soft delete (F17)', () => {
+    const dueAt = new Date(2026, 8, 10, 9, 0).getTime();
+
+    it('hides a deleted task from every task query (AC2)', () => {
+      const db = makeDb();
+      const open = seed(db, 'open', 1000, false, dueAt);
+      const done = seed(db, 'done', 1100, true, dueAt);
+      const recurring = seed(db, 'repeats', 1200, false, dueAt, 'daily');
+      const keep = seed(db, 'keep', 1300, false, dueAt);
+
+      [open, done, recurring].forEach((t) => removeTask(db, t.id, 5000));
+
+      const date = new Date(dueAt);
+      expect(listAll(db).map((t) => t.id)).toEqual([keep.id]);
+      expect(listOpen(db).map((t) => t.id)).toEqual([keep.id]);
+      for (const g of ['day', 'week', 'month', 'year'] as const) {
+        expect(scheduledForGranularity(db, g, date).map((t) => t.id)).toEqual([keep.id]);
+      }
+    });
+
+    it('keeps the row, with deletedAt equal to updatedAt (AC3)', () => {
+      const db = makeDb();
+      const task = seed(db, 'bye', 1000);
+
+      removeTask(db, task.id, 7000);
+
+      const row = findById(db, task.id);
+      expect(row).toBeDefined();
+      expect(row?.deletedAt).toBe(7000);
+      expect(row?.updatedAt).toBe(7000);
+      expect(row?.text).toBe('bye');
+    });
+
+    it('does not let any mutation resurrect or alter a deleted task (AC5)', () => {
+      const db = makeDb();
+      const task = seed(db, 'frozen', 1000, false, dueAt, 'daily');
+      removeTask(db, task.id, 2000);
+
+      updateText(db, task.id, 'changed', 9000);
+      setCompleted(db, task.id, true, 9000);
+      setCompleted(db, task.id, false, 9000);
+      setSchedule(db, task.id, null, 9000);
+      setSchedule(db, task.id, dueAt + 1000, 9000);
+      setRecurrence(db, task.id, 'monthly', null, 9000);
+      setRecurrence(db, task.id, null, null, 9000);
+
+      const row = findById(db, task.id);
+      expect(row).toMatchObject({
+        text: 'frozen',
+        completed: false,
+        dueAt,
+        recurrence: 'daily',
+        deletedAt: 2000,
+        updatedAt: 2000,
+      });
+    });
+
+    it('is idempotent: a second delete does not advance updatedAt (AC6)', () => {
+      const db = makeDb();
+      const task = seed(db, 'twice', 1000);
+
+      removeTask(db, task.id, 2000);
+      removeTask(db, task.id, 8000);
+
+      const row = findById(db, task.id);
+      expect(row?.deletedAt).toBe(2000);
+      expect(row?.updatedAt).toBe(2000);
+    });
+
+    it('migrates existing rows as not-deleted, fields unchanged (AC4)', () => {
+      const sqlite = new Database(':memory:');
+      const files = fs
+        .readdirSync(DRIZZLE_DIR)
+        .filter((f) => f.endsWith('.sql'))
+        .sort();
+      const apply = (file: string) => {
+        const sqlText = fs.readFileSync(path.join(DRIZZLE_DIR, file), 'utf8');
+        for (const stmt of sqlText.split('--> statement-breakpoint')) {
+          if (stmt.trim()) sqlite.exec(stmt.trim());
+        }
+      };
+      const f17 = files.findIndex((f) => f.startsWith('0004'));
+      files.slice(0, f17).forEach(apply); // the F14-era schema
+      sqlite
+        .prepare(
+          'INSERT INTO tasks (id, text, completed, due_at, recurrence, recurrence_days, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        )
+        .run('t1', 'pre-existing', 1, 5000, 'specific-days', '1,3', 1000, 1500);
+
+      apply(files[f17]);
+
+      const row = sqlite.prepare('SELECT * FROM tasks WHERE id = ?').get('t1') as Record<
+        string,
+        unknown
+      >;
+      expect(row).toMatchObject({
+        id: 't1',
+        text: 'pre-existing',
+        completed: 1,
+        due_at: 5000,
+        recurrence: 'specific-days',
+        recurrence_days: '1,3',
+        created_at: 1000,
+        updated_at: 1500,
+        deleted_at: null,
+      });
+    });
   });
 });

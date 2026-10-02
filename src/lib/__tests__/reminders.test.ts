@@ -57,6 +57,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     recurrenceDays: null,
     createdAt: 0,
     updatedAt: 0,
+    deletedAt: null,
     ...overrides,
   };
 }

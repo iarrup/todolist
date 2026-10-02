@@ -5,6 +5,7 @@ import { db } from './client';
 import { startOfDay, endOfDay } from './dayRange';
 import { startOfMonth, endOfMonth } from './monthRange';
 import { startOfWeek, endOfWeek } from './weekRange';
+import { isLive } from './liveFilter';
 import { notes, type Note } from './schema';
 import type { Granularity } from '@/lib/granularity';
 
@@ -22,6 +23,7 @@ export async function insertNote(text: string): Promise<Note> {
     text,
     createdAt: now,
     updatedAt: now,
+    deletedAt: null,
   };
   await db.insert(notes).values(row);
   return row;
@@ -36,7 +38,7 @@ function notesForRangeQuery(start: number, end: number) {
   return db
     .select()
     .from(notes)
-    .where(and(gte(notes.createdAt, start), lte(notes.createdAt, end)))
+    .where(and(isLive(notes), gte(notes.createdAt, start), lte(notes.createdAt, end)))
     .orderBy(desc(notes.createdAt));
 }
 
@@ -72,12 +74,23 @@ export async function listNotesForDay(date: Date): Promise<Note[]> {
   return notesForDayQuery(date);
 }
 
-/** Update a note's text (and `updatedAt`); `id` and `createdAt` are untouched. */
+/** Update a live note's text (and `updatedAt`); `id` and `createdAt` are untouched. A deleted note is left deleted. */
 export async function updateNoteText(id: string, text: string): Promise<void> {
-  await db.update(notes).set({ text, updatedAt: Date.now() }).where(eq(notes.id, id));
+  await db
+    .update(notes)
+    .set({ text, updatedAt: Date.now() })
+    .where(and(eq(notes.id, id), isLive(notes)));
 }
 
-/** Delete a note. A non-existent id is a no-op. */
+/**
+ * Soft-delete a note (F17): marks it deleted instead of removing the row, so
+ * the deletion can sync. `deletedAt` and `updatedAt` get the same moment. A
+ * non-existent or already-deleted id is a no-op (`updatedAt` is not advanced).
+ */
 export async function deleteNote(id: string): Promise<void> {
-  await db.delete(notes).where(eq(notes.id, id));
+  const now = Date.now();
+  await db
+    .update(notes)
+    .set({ deletedAt: now, updatedAt: now })
+    .where(and(eq(notes.id, id), isLive(notes)));
 }

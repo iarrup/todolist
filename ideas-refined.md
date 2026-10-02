@@ -147,14 +147,16 @@ For traceability, the previously open questions and their resolutions:
 | 5 | Editing notes | **Yes** — notes are editable. |
 | 6 | Search | **Keyword search** for both notes and tasks, in a **later phase**. |
 | 7 | Tech stack | Start **cross-platform**; reassess as it evolves. |
+| 8 | Web scope (Phase 3) | Web is **view-only** — no editing on web. Decided 2026-10-01. |
+| 9 | Accounts & auth (Phase 3) | **Google Sign-In**; details deferred to the F16 spec. Decided 2026-10-01. |
+| 10 | Conflict handling (Phase 3) | **Last-write-wins** per item. Decided 2026-10-01. |
+| 11 | Phone sync model (Phase 3) | **Local-first**: on-device DB stays the UI's source; syncs in the background. Decided 2026-10-01. |
 
 ---
 
 ## Open Questions (for the Web & Sync phase)
 
-To be resolved when Phase 3 is approached — not blocking earlier phases:
-
-1. **Accounts & auth.** Sync implies some identity model. What does sign-in look
-   like (Google account, email, etc.)?
-2. **Conflict handling.** When the same note or task is edited on both phone and
-   web, how is the conflict resolved (last-write-wins vs. merge)?
+Both original questions were resolved on 2026-10-01 during Phase 3 planning
+(see Resolved Decisions #9 and #10): Google Sign-In, and last-write-wins.
+Remaining details (token handling, hosting, backend stack) are deferred to the
+F15/F16 specs and the `choose-tech-stack` decision.

@@ -10,6 +10,7 @@ const note = (id: string, text: string, createdAt: number): Note => ({
   text,
   createdAt,
   updatedAt: createdAt,
+  deletedAt: null,
 });
 
 const day1 = new Date(2026, 8, 1, 9, 0, 0).getTime();

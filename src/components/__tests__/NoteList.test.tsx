@@ -11,6 +11,7 @@ const note = (id: string, text: string, createdAt: number): Note => ({
   text,
   createdAt,
   updatedAt: createdAt,
+  deletedAt: null,
 });
 
 describe('NoteList', () => {

@@ -6,7 +6,7 @@ import type { Note } from '@/db/schema';
 import { groupNotesByDay } from '../groupNotesByDay';
 
 function note(id: string, text: string, createdAt: number): Note {
-  return { id, text, createdAt, updatedAt: createdAt };
+  return { id, text, createdAt, updatedAt: createdAt, deletedAt: null };
 }
 
 describe('groupNotesByDay', () => {
